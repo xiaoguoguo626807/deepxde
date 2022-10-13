@@ -2,6 +2,7 @@
 import deepxde as dde
 import matplotlib.pyplot as plt
 import numpy as np
+import sys
 # Import tf if using backend tensorflow.compat.v1 or tensorflow
 # from deepxde.backend import tf
 # Import torch if using backend pytorch
@@ -16,11 +17,6 @@ bkd.control_seed(100)
 
 def pde(x, y):
     dy_xx = dde.grad.hessian(y, x)
-    # Use tf.sin for backend tensorflow.compat.v1 or tensorflow
-    # return -dy_xx - np.pi ** 2 * tf.sin(np.pi * x)
-    # Use torch.sin for backend pytorch
-    # return -dy_xx - np.pi ** 2 * torch.sin(np.pi * x)
-    # Use paddle.sin for backend paddle
     return -dy_xx - np.pi ** 2 * bkd.sin(np.pi * x)
 
 
@@ -37,11 +33,27 @@ data = dde.data.PDE(geom, pde, bc, 16, 2, solution=func, num_test=100)
 
 layer_size = [1] + [50] * 3 + [1]
 # set the same initializer param #
+# paddle init param
 w_array = []
+input_str = []
+file_name1 = sys.argv[1]
+with open(file_name1, mode='r') as f1:
+    for line in f1:
+        input_str.append(line)
+print("input_str.size: ", len(input_str))
+j = 0
 for i in range(1, len(layer_size)):
     shape = (layer_size[i-1], layer_size[i])
-    w = np.random.normal(size=shape).astype('float32')
+    w_line = input_str[j]
+    w = []
+    tmp = w_line.split(',')
+    for num in tmp:
+        w.append(np.float(num))
+    w = np.array(w).reshape(shape)
+    print("w . shape :", w.shape)
+    j = j+2
     w_array.append(w)
+###############################
 
 activation = "tanh"
 initializer = "Glorot uniform"
@@ -68,10 +80,10 @@ dde.saveplot(losshistory, train_state, issave=True, isplot=True)
 # model.restore(f"model/model-{train_state.best_step}.ckpt", verbose=1)
 # Plot PDE residual
 x = geom.uniform_points(1000, True)
-y_ = func(x)
-file_name_y_ = 'standard_y'
-with open(file_name_y_,'w') as f:
-    np.savetxt(f,y_,delimiter=",")
+# y_ = func(x)
+# file_name_y_ = 'standard_y'
+# with open(file_name_y_,'w') as f:
+#     np.savetxt(f,y_,delimiter=",")
     
 # y = model.predict(x, operator=pde)
 y = model.predict(x, operator=None)

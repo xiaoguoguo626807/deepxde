@@ -9,7 +9,7 @@ from ... import config
 class FNN(NN):
     """Fully-connected neural network."""
 
-    def __init__(self, layer_sizes, activation, kernel_initializer,w_array):
+    def __init__(self, layer_sizes, activation, kernel_initializer,w_array=[], b_array=[]):
         super().__init__()
         self.activation = activations.get(activation)
         initializer = initializers.get(kernel_initializer)
@@ -17,16 +17,15 @@ class FNN(NN):
 
         self.linears = torch.nn.ModuleList()
         for i in range(1, len(layer_sizes)):
-            print("init i :", i, "self.linears :", self.linears)
             self.linears.append(
                 torch.nn.Linear(
                     layer_sizes[i - 1], layer_sizes[i], dtype=config.real(torch)
                 )
             )
+            print("w_array[i-1] type", w_array[i-1].dtype)
             self.linears[-1].weight = torch.nn.parameter.Parameter(torch.Tensor(w_array[i-1]).transpose(0,1))
-            print("len_w_array[{}] = {} ".format(i,w_array[i-1].shape))
-            print("linear.weight_shape :", self.linears[-1].weight.shape)
-            #initializer(self.linears[-1].weight)
+            # self.linears[-1].bias = torch.nn.parameter.Parameter(torch.Tensor(b_array[i-1]))
+            # initializer(self.linears[-1].weight)
             initializer_zero(self.linears[-1].bias)
         # debug info
         import os

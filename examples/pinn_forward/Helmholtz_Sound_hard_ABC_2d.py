@@ -3,13 +3,19 @@ import deepxde as dde
 import numpy as np
 import scipy
 from scipy.special import jv, hankel1
+import sys
+import torch
+# Import paddle if using backend paddle
 import paddle
-paddle.enable_static()
+# paddle.enable_static()
 # paddle.incubate.autograd.enable_prim()
+from deepxde.backend import backend_name, tf, torch, jax, paddle
+from deepxde import backend as bkd
+bkd.control_seed(100)
 
 # General parameters
 weights = 1
-epochs = 10000
+epochs = 100000
 learning_rate = 1e-3
 num_dense_layers = 3
 num_dense_nodes = 350
@@ -128,8 +134,30 @@ data = dde.data.PDE(
     num_test=5 * nx**2,
     solution=sol,
 )
+layer_size = [2] + [num_dense_nodes] * num_dense_layers + [2]
+w_array = []
+input_str = []
+file_name1 = sys.argv[1]
+with open(file_name1, mode='r') as f1:
+    for line in f1:
+        input_str.append(line)
+print("input_str.size: ", len(input_str))
+j = 0
+for i in range(1, len(layer_size)):
+    shape = (layer_size[i-1], layer_size[i])
+    w_line = input_str[j]
+    w = []
+    tmp = w_line.split(',')
+    for num in tmp:
+        w.append(np.float(num))
+    w = np.array(w).reshape(shape)
+    print("w . shape :", w.shape)
+    j = j+2
+    w_array.append(w)
+# ###############################
+
 net = dde.maps.FNN(
-    [2] + [num_dense_nodes] * num_dense_layers + [2], activation, "Glorot uniform"
+    layer_size, activation, "Glorot uniform", w_array
 )
 model = dde.Model(data, net)
 

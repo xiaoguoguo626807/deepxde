@@ -1,12 +1,18 @@
 """Backend supported: tensorflow.compat.v1, tensorflow, pytorch, jax, paddle"""
 import deepxde as dde
 import numpy as np
+import torch
+# Import paddle if using backend paddle
+import sys
 import paddle
-paddle.enable_static()
+# paddle.enable_static()
 # paddle.incubate.autograd.enable_prim()
+from deepxde.backend import backend_name, tf, torch, jax, paddle
+from deepxde import backend as bkd
+bkd.control_seed(100)
 
 def gen_traindata():
-    data = np.load("../dataset/Lorenz.npz")
+    data = np.load("../../dataset/Lorenz.npz")
     return data["t"], data["y"]
 
 
@@ -50,7 +56,6 @@ def Lorenz_system(x, y):
 def boundary(_, on_initial):
     return on_initial
 
-
 geom = dde.geometry.TimeDomain(0, 3)
 
 # Initial conditions
@@ -64,6 +69,7 @@ observe_y0 = dde.icbc.PointSetBC(observe_t, ob_y[:, 0:1], component=0)
 observe_y1 = dde.icbc.PointSetBC(observe_t, ob_y[:, 1:2], component=1)
 observe_y2 = dde.icbc.PointSetBC(observe_t, ob_y[:, 2:3], component=2)
 
+
 data = dde.data.PDE(
     geom,
     Lorenz_system,
@@ -73,7 +79,31 @@ data = dde.data.PDE(
     anchors=observe_t,
 )
 
-net = dde.nn.FNN([1] + [40] * 3 + [3], "tanh", "Glorot uniform")
+
+layer_size = [1] + [40] * 3 + [3]
+# paddle init param
+w_array = []
+input_str = []
+file_name1 = sys.argv[1]
+with open(file_name1, mode='r') as f1:
+    for line in f1:
+        input_str.append(line)
+print("input_str.size: ", len(input_str))
+j = 0
+for i in range(1, len(layer_size)):
+    shape = (layer_size[i-1], layer_size[i])
+    w_line = input_str[j]
+    w = []
+    tmp = w_line.split(',')
+    for num in tmp:
+        w.append(np.float(num))
+    w = np.array(w).reshape(shape)
+    print("w . shape :", w.shape)
+    j = j+2
+    w_array.append(w)
+###############################
+
+net = dde.nn.FNN(layer_size, "tanh", "Glorot uniform", w_array)
 model = dde.Model(data, net)
 model.compile("adam", lr=0.001, external_trainable_variables=[C1, C2, C3])
 variable = dde.callbacks.VariableValue(
@@ -81,3 +111,24 @@ variable = dde.callbacks.VariableValue(
 )
 losshistory, train_state = model.train(iterations=60000, callbacks=[variable])
 dde.saveplot(losshistory, train_state, issave=True, isplot=True)
+
+
+#########predict solution#########
+x = geom.uniform_points(1000, True)
+y = model.predict(x, operator=None)
+
+if backend_name == 'paddle':
+    file_namex = 'paddle_x'
+    file_namey = 'paddle_y'
+elif backend_name == 'pytorch':
+    file_namex = 'pytorch_x'
+    file_namey = 'pytorch_y'
+elif backend_name == 'tensorflow':
+    file_namex = 'tensorflow_x'
+    file_namey = 'tensorflow_y'
+
+    
+with open(file_namex,'ab') as f:
+    np.savetxt(f,x,delimiter=",")
+with open(file_namey,'ab') as g:
+    np.savetxt(g,y,delimiter=",")

@@ -94,6 +94,10 @@ def sin(x):
     return paddle.sin(x)
 
 
+def exp(x):
+    return paddle.exp(x)
+
+
 def square(x):
     if paddle.in_dynamic_mode():
         return paddle.square(x)

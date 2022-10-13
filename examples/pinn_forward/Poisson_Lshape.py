@@ -1,6 +1,8 @@
 """Backend supported: tensorflow.compat.v1, tensorflow, pytorch"""
 import deepxde as dde
 
+from deepxde import backend as bkd
+bkd.control_seed(100)
 
 def pde(x, y):
     dy_xx = dde.grad.hessian(y, x, i=0, j=0)
