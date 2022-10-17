@@ -481,9 +481,16 @@ class Model:
         )
 
         def train_step(inputs, targets):
+            """动态图"""
             losses = outputs_losses_train(inputs, targets)[1]
             total_loss = paddle.sum(losses)
+
+            # file_name3 = 'paddle_dygraph_loss.log'
+            # with open(file_name3, 'ab') as f3:
+            #     np.savetxt(f3, utils.to_numpy(total_loss), delimiter=",")
+
             total_loss.backward()
+            print(f"{total_loss.item(0):.10f}")
             self.opt.step()
             self.opt.clear_grad()
 
@@ -568,11 +575,21 @@ class Model:
             self.exe.run(self.start_up_program)
 
         def prim_static_start_up(train_inputs, train_targets, test_inputs, test_targets, train_losses_fn, test_losses_fn):
+            """_summary_
+
+            Args:
+                train_inputs (_type_): (166, 1)
+                train_targets (_type_): None
+                test_inputs (_type_): (166, 1)
+                test_targets (_type_): None
+                train_losses_fn (_type_): Callable
+                test_losses_fn (_type_): Callable
+            """
             print("prim init train program")
 
             self.train_program = paddle.static.default_main_program()
             self.test_program = self.train_program.clone()
-            self.start_up_program  = paddle.static.default_startup_program()
+            self.start_up_program = paddle.static.default_startup_program()
 
             # s = open('prim_start_up_program.log','w')
             # print (self.start_up_program,file=s)
@@ -581,6 +598,10 @@ class Model:
             # build the train_program
             with paddle.fluid.unique_name.guard():
                 with paddle.static.program_guard(self.train_program, self.start_up_program):
+                    # print(train_inputs.dtype)
+                    # print(test_inputs.dtype)
+                    # print(test_targets.dtype)
+                    # print(loss_weights.dtype)
                     inputs_buffer = paddle.static.data(name='train_inputs',
                                         shape=train_inputs.shape,
                                         dtype=train_inputs.dtype)
@@ -593,9 +614,10 @@ class Model:
                                         dtype=train_targets.dtype)
                         targets_buffer.stop_gradient = False
                         print("train_targets_buffer shape :", targets_buffer.shape)
-
+                    else:
+                        targets_buffer = None
                     self.train_outputs = self.net(inputs_buffer)
-                    print("train_outputs shape :", self.train_outputs.shape)
+                    print("train_outputs shape :", self.train_outputs.shape)  # [166, 2]
 
                     losses = train_losses_fn(targets_buffer, self.train_outputs, loss_fn, inputs_buffer, self)
                     if not isinstance(losses, list):
@@ -618,11 +640,11 @@ class Model:
 
                     print("train_program success")
 
-            # f = open('prim_train_program.log','w')
-            # print (self.train_program,file=f)
-            # f.close()
+            with open('prim_train_program.log', 'w') as f:
+                f.write(f"{'train_program'} \n\n\n\n\n {self.train_program}")
+                f.write(f"{'start_up_program'} \n\n\n\n\n {self.start_up_program}")
 
-            # build the test_program
+            # # build the test_program
             with paddle.fluid.unique_name.guard():
                 with paddle.static.program_guard(self.test_program, self.start_up_program):
                     inputs_buffer_ = paddle.static.data(name='test_inputs',
@@ -637,7 +659,8 @@ class Model:
                                         dtype=test_targets.dtype)
                         targets_buffer_.stop_gradient = False
                         print("test_targets_buffer shape :", targets_buffer_.shape)
-
+                    else:
+                        targets_buffer_ = None
                     self.test_outputs = self.net(inputs_buffer_)
                     print("outputs shape :", self.test_outputs.shape)
 
@@ -670,7 +693,7 @@ class Model:
 
         def outputs(training, inputs):
 
-            if training :
+            if training:
                 self.feeds['train_inputs'] = inputs
                 if loss_weights is not None:
                     self.feeds['loss_weights'] = loss_weights
@@ -711,7 +734,7 @@ class Model:
                 if targets is not None:
                     self.feeds['train_targets'] = targets
 
-                self.fetches = [self.train_losses.name]
+                self.fetches = [self.total_loss.name]
                 self.fetches.append(self.train_outputs.name)
                 self.fetches.append(self.var_list)
                 static_out = self.exe.run(self.train_program, feed=self.feeds,
@@ -735,13 +758,17 @@ class Model:
                     if targets is not None:
                         self.feeds['train_targets'] = targets
 
-                    self.fetches = [self.train_losses.name]
+                    self.fetches = [self.total_loss.name]
                     self.fetches.append(self.train_outputs.name)
                     self.fetches.append(self.var_list)
                     static_out = self.exe.run(self.train_program, feed=self.feeds,
                             fetch_list=self.fetches)
             # Data losses
             losses = static_out[0]
+            if losses.size == 1:
+                total_loss = losses.item()
+                if isinstance(total_loss, float):
+                    print(f"{total_loss:.10f}")
             outputs_ = static_out[1]
             for i in range(len(self.var_list)):
                 self.extra_fetch_var.append(static_out[i+2])
@@ -891,14 +918,19 @@ class Model:
             if backend_name == "paddle":
                 if not paddle.in_dynamic_mode():
                     print("paddle start_up_program run...")
+                    # print("self.train_state.X_train.dtype", self.train_state.X_train.dtype)
+                    # print("self.train_state.X_test.dtype", self.train_state.X_test.dtype)
+                    # print(self.data.losses_train)
+                    # print(self.data.losses_test)
+                    # print("self.train_state.y_test.dtype", self.train_state.y_test.dtype)
                     self.static_start_up(self.train_state.X_train,
-                                    self.train_state.y_train,
+                                    self.train_state.y_train,  # None
                                     self.train_state.X_test,
-                                    self.train_state.y_test,
+                                    self.train_state.y_test,  # None
                                     self.data.losses_train,
                                     self.data.losses_test)
         print("start_up_program end ...")
-        self._test()
+        # self._test()
         self.callbacks.on_train_begin()
         if optimizers.is_external_optimizer(self.opt_name):
             if backend_name == "tensorflow.compat.v1":
@@ -914,9 +946,9 @@ class Model:
         self.callbacks.on_train_end()
 
         print("")
-        display.training_display.summary(self.train_state)
-        if model_save_path is not None:
-            self.save(model_save_path, verbose=1)
+        # display.training_display.summary(self.train_state)
+        # if model_save_path is not None:
+            # self.save(model_save_path, verbose=1)
         return self.losshistory, self.train_state
 
     def _train_sgd(self, iterations, display_every):
@@ -935,8 +967,8 @@ class Model:
 
             self.train_state.epoch += 1
             self.train_state.step += 1
-            if self.train_state.step % display_every == 0 or i + 1 == iterations:
-                self._test()
+            # if self.train_state.step % display_every == 0 or i + 1 == iterations:
+            #     self._test()
 
             self.callbacks.on_batch_end()
             self.callbacks.on_epoch_end()
@@ -1067,7 +1099,7 @@ class Model:
             or np.isnan(self.train_state.loss_test).any()
         ):
             self.stop_training = True
-        display.training_display(self.train_state)
+        # display.training_display(self.train_state)
 
     def predict(self, x, operator=None, callbacks=None):
         """Generates predictions for the input samples. If `operator` is ``None``,

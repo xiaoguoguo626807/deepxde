@@ -1,4 +1,4 @@
-"""Backend supported: tensorflow.compat.v1, tensorflow, pytorch
+"""Backend supported: tensorflow.compat.v1, tensorflow, pytorch, paddle
 
 Implementation for the diffusion-reaction system with a space-dependent reaction rate in paper https://arxiv.org/abs/2111.02801.
 """
@@ -6,6 +6,28 @@ import deepxde as dde
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.integrate import solve_bvp
+import argparse
+import paddle
+import random
+paddle.seed(0)
+np.random.seed(0)
+random.seed(0)
+
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    '--static', default=False, action="store_true")
+parser.add_argument(
+    '--prim', default=False, action="store_true")
+args = parser.parse_args()
+
+if args.static is True:
+    print("============= 静态图静态图静态图静态图静态图 =============")
+    paddle.enable_static()
+    if args.prim:
+        paddle.incubate.autograd.enable_prim()
+        print("============= prim prim prim prim prim  =============")
+else:
+    print("============= 动态图动态图动态图动态图动态图 =============")
 
 l = 0.01
 
@@ -47,7 +69,8 @@ def func(x):
 
 ob_x, ob_u = gen_traindata(num)
 observe_u = dde.icbc.PointSetBC(ob_x, ob_u, component=0)
-
+# print(observe_u.points.shape)  # (100, 1)
+# print(observe_u.values.shape)  # (100, 1)
 bc = dde.icbc.DirichletBC(geom, func, lambda _, on_boundary: on_boundary, component=0)
 
 data = dde.data.PDE(
@@ -64,7 +87,7 @@ net = dde.nn.PFNN([1, [20, 20], [20, 20], 2], "tanh", "Glorot uniform")
 model = dde.Model(data, net)
 model.compile("adam", lr=1e-3)
 
-losshistory, train_state = model.train(iterations=20000)
+losshistory, train_state = model.train(iterations=20000, display_every=1)
 
 x = geom.uniform_points(500)
 yhat = model.predict(x)
