@@ -493,6 +493,8 @@ class Model:
             print(f"{total_loss.item(0):.10f}")
             self.opt.step()
             self.opt.clear_grad()
+            if isinstance(self.opt._learning_rate, paddle.optimizer.lr.LRScheduler):
+                self.opt._learning_rate.step()
 
         # Callables
         self.outputs = outputs
@@ -847,6 +849,9 @@ class Model:
         elif backend_name in ["pytorch", "paddle"]:
             # TODO: auxiliary_vars
             self.train_step(inputs, targets)
+            if hasattr(self.opt, '_learning_rate') and \
+                    isinstance(self.opt._learning_rate, paddle.optimizer.lr.LRScheduler):
+                self.opt._learning_rate.step()
         elif backend_name == "jax":
             # TODO: auxiliary_vars
             self.params, self.opt_state = self.train_step(
