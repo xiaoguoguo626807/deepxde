@@ -1,12 +1,41 @@
 """Backend supported: tensorflow.compat.v1, tensorflow, pytorch, jax, paddle"""
 import deepxde as dde
 import numpy as np
+import os
+from deepxde import backend as bkd
+
+import argparse
 import paddle
-paddle.enable_static()
-# paddle.incubate.autograd.enable_prim()
+import random
+paddle.seed(0)
+np.random.seed(0)
+random.seed(0)
+
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    '--static', default=False, action="store_true")
+parser.add_argument(
+    '--prim', default=False, action="store_true")
+args = parser.parse_args()
+
+if args.static is True:
+    print("============= 静态图静态图静态图静态图静态图 =============")
+    paddle.enable_static()
+    if args.prim:
+        paddle.incubate.autograd.enable_prim()
+        print("============= prim prim prim prim prim  =============")
+else:
+    print("============= 动态图动态图动态图动态图动态图 =============")
+
+
+task_name = os.path.basename(__file__).split(".")[0]
+
+# 创建任务日志文件夹
+log_dir = f"./{task_name}"
+os.makedirs(f"{log_dir}", exist_ok=True)
 
 def gen_traindata():
-    data = np.load("../dataset/Lorenz.npz")
+    data = np.load("/home/wangruting/science/deepxde_wrt_44_orig/deepxde_wrt_44/examples/dataset/Lorenz.npz")
     return data["t"], data["y"]
 
 
@@ -73,7 +102,22 @@ data = dde.data.PDE(
     anchors=observe_t,
 )
 
-net = dde.nn.FNN([1] + [40] * 3 + [3], "tanh", "Glorot uniform")
+net = dde.nn.FNN([1] + [40] * 3 + [3], "tanh", "Glorot uniform", task_name)
+
+new_save = False
+for name, param in net.named_parameters():
+    if os.path.exists(f"{log_dir}/{name}.npy"):
+        continue
+    new_save = True
+    np.save(f"{log_dir}/{name}.npy", param.numpy())
+    print(f"successfully save param {name} at [{log_dir}/{name}.npy]")
+
+if new_save:
+    print("第一次保存模型完毕，自动退出，请再次运行")
+    exit(0)
+else:
+    print("所有模型参数均存在，开始训练...............")
+    
 model = dde.Model(data, net)
 model.compile("adam", lr=0.001, external_trainable_variables=[C1, C2, C3])
 variable = dde.callbacks.VariableValue(

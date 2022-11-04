@@ -95,21 +95,20 @@ activation = "tanh"
 initializer = "Glorot uniform"
 net = dde.nn.FNN(layer_size, activation, initializer, task_name)
 
-# new_save = False
-# for name, param in net.named_parameters():
+new_save = False
+for name, param in net.named_parameters():
+    if os.path.exists(f"{log_dir}/{name}.npy"):
+        continue
+    new_save = True
+    np.save(f"{log_dir}/{name}.npy", param.numpy())
+    print(f"successfully save param {name} at [{log_dir}/{name}.npy]")
 
-#     if os.path.exists(f"/home/wangruting/science/deepxde_wrt_44_orig/deepxde_wrt_44/Poisson_Dirichlet_1d/{name}.npy"):
-
-#         continue
-#     new_save = True
-#     np.save(f"/workspace/hesensen/paddlescience_project/deepxde_wrt_new/Poisson_Dirichlet_1d/{name}.npy", param.numpy())
-#     print(f"successfully save param {name} at [/workspace/hesensen/paddlescience_project/deepxde_wrt_new/Poisson_Dirichlet_1d/{name}.npy]")
-
-# if new_save:
-#     print("第一次保存模型完毕，自动退出，请再次运行")
-#     exit(0)
-# else:
-#     print("所有模型参数均存在，开始训练...............")
+if new_save:
+    print("第一次保存模型完毕，自动退出，请再次运行")
+    exit(0)
+else:
+    print("所有模型参数均存在，开始训练...............")
+    
 model = dde.Model(data, net)
 model.compile("adam", lr=0.001, metrics=["l2 relative error"])
 
@@ -130,15 +129,14 @@ dde.saveplot(losshistory, train_state, issave=True, isplot=True)
 # Optional: Restore the saved model with the smallest training loss
 # model.restore(f"model/model-{train_state.best_step}.ckpt", verbose=1)
 # Plot PDE residual
-# x = geom.uniform_points(1000, True)
+x = geom.uniform_points(100, True)
 # y_ = func(x)
 # file_name_y_ = 'standard_y'
 # with open(file_name_y_,'w') as f:
 #     np.savetxt(f,y_,delimiter=",")
 
 # y = model.predict(x, operator=pde)
-# y = model.predict(x, operator=None)
-
+y = model.predict(x, operator=None)
 # if backend_name == 'paddle':
 #     file_namex = 'paddle_x'
 #     file_namey = 'paddle_y'

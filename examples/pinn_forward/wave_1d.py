@@ -10,7 +10,12 @@ import numpy as np
 
 A = 2
 C = 10
+import os
+task_name = os.path.basename(__file__).split(".")[0]
 
+# 创建任务日志文件夹
+log_dir = f"./{task_name}"
+os.makedirs(f"{log_dir}", exist_ok=True)
 
 def get_initial_loss(model):
     model.compile("adam", lr=0.001, metrics=["l2 relative error"])
@@ -58,7 +63,7 @@ layer_size = [2] + [100] * 3 + [1]
 activation = "tanh"
 initializer = "Glorot uniform"
 net = dde.nn.STMsFFN(
-    layer_size, activation, initializer, sigmas_x=[1], sigmas_t=[1, 10]
+    layer_size, activation, initializer, sigmas_x=[1], sigmas_t=[1, 10], task_name=task_name,
 )
 net.apply_feature_transform(lambda x: (x - 0.5) * 2 * np.sqrt(3))
 

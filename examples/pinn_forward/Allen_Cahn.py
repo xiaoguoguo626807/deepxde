@@ -33,12 +33,12 @@ d = 0.001
 def pde(x, y):
     dy_t = dde.grad.jacobian(y, x, i=0, j=1)
     dy_xx = dde.grad.hessian(y, x, i=0, j=0)
-    return dy_t - d * dy_xx - 5 * (y - y**3)
+    return dy_t - d * dy_xx - 5 * (y - paddle.pow(y,3))
 
 # Hard restraints on initial + boundary conditions
 # Backend tensorflow.compat.v1 or tensorflow
-def output_transform(x, y):
-    return x[:, 0:1]**2 * tf.cos(np.pi * x[:, 0:1]) + x[:, 1:2] * (1 - x[:, 0:1]**2) * y
+# def output_transform(x, y):
+#     return x[:, 0:1]**2 * tf.cos(np.pi * x[:, 0:1]) + x[:, 1:2] * (1 - x[:, 0:1]**2) * y
 
 # Backend pytorch
 # def output_transform(x, y):
@@ -47,6 +47,8 @@ def output_transform(x, y):
 # Backend paddle
 def output_transform(x, y):
     return x[:, 0:1]**2 * paddle.cos(np.pi * x[:, 0:1]) + x[:, 1:2] * (1 - x[:, 0:1]**2) * y
+    # return x[:, 0:1] * x[:, 0:1] * paddle.cos(np.pi * x[:, 0:1]) + x[:, 1:2] * (1 - x[:, 0:1] * x[:, 0:1]) * y
+    
 
 data = dde.data.TimePDE(geomtime, pde, [], num_domain=8000, num_boundary=400, num_initial=800)
 net = dde.nn.FNN([2] + [20] * 3 + [1], "tanh", "Glorot normal")

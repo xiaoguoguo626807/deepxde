@@ -3,6 +3,12 @@ import deepxde as dde
 import matplotlib.pyplot as plt
 import numpy as np
 
+import os
+task_name = os.path.basename(__file__).split(".")[0]
+
+# 创建任务日志文件夹
+log_dir = f"./{task_name}"
+os.makedirs(f"{log_dir}", exist_ok=True)
 
 def gen_traindata(num):
     # generate num equally-spaced points from -1 to 1
@@ -38,7 +44,7 @@ data = dde.data.PDE(
     num_test=1000,
 )
 
-net = dde.nn.PFNN([1, [20, 20], [20, 20], [20, 20], 2], "tanh", "Glorot uniform")
+net = dde.nn.PFNN([1, [20, 20], [20, 20], [20, 20], 2], "tanh", "Glorot uniform", task_name=task_name)
 
 model = dde.Model(data, net)
 model.compile("adam", lr=0.0001, loss_weights=[1, 100, 1000])

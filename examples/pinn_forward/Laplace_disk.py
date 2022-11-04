@@ -1,8 +1,8 @@
 """Backend supported: tensorflow.compat.v1, tensorflow, pytorch"""
 import deepxde as dde
 import numpy as np
-# Import tf if using backend tensorflow.compat.v1 or tensorflow
-from deepxde.backend import tf
+# Import bkd if using backend tensorflow.compat.v1 or tensorflow
+import deepxde.backend as bkd
 # Import torch if using backend pytorch
 # import torch
 
@@ -35,8 +35,8 @@ net = dde.nn.FNN([2] + [20] * 3 + [1], "tanh", "Glorot normal")
 # so that the network is automatically periodic along the theta coordinate.
 # Backend tensorflow.compat.v1 or tensorflow
 def feature_transform(x):
-    return tf.concat(
-        [x[:, 0:1] * tf.sin(x[:, 1:2]), x[:, 0:1] * tf.cos(x[:, 1:2])], axis=1
+    return bkd.concat(
+        [x[:, 0:1] * bkd.sin(x[:, 1:2]), x[:, 0:1] * bkd.cos(x[:, 1:2])], axis=1
     )
 # Backend pytorch
 # def feature_transform(x):

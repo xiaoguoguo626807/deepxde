@@ -29,8 +29,14 @@ if args.static is True:
 else:
     print("============= 动态图动态图动态图动态图动态图 =============")
 
-l = 0.01
+import os
+task_name = os.path.basename(__file__).split(".")[0]
 
+# 创建任务日志文件夹
+log_dir = f"./{task_name}"
+os.makedirs(f"{log_dir}", exist_ok=True)
+
+l = 0.01
 
 def k(x):
     return 0.1 + np.exp(-0.5 * (x - 0.5) ** 2 / 0.15**2)
@@ -82,7 +88,7 @@ data = dde.data.PDE(
     num_test=1000,
 )
 
-net = dde.nn.PFNN([1, [20, 20], [20, 20], 2], "tanh", "Glorot uniform")
+net = dde.nn.PFNN([1, [20, 20], [20, 20], 2], "tanh", "Glorot uniform", task_name=task_name)
 model = dde.Model(data, net)
 model.compile("adam", lr=1e-3)
 

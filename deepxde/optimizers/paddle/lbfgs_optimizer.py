@@ -29,7 +29,7 @@ class LossAndFlatGradient:
         for train_var in trainable_variables:
             self.shapes.append(train_var.shape)
         self.n_tensors = len(self.shapes)
-        print("n_tensors = ", self.n_tensors)
+        # print("n_tensors = ", self.n_tensors)
         # Information for dynamic_stitch and dynamic_partition
         count = 0
         self.partitions = []  # partition indices
@@ -38,7 +38,7 @@ class LossAndFlatGradient:
             n = np.product(shape) # number of every param
             count += n
             self.partitions.append(count)
-        print("partition = ", self.partitions)
+        # print("partition = ", self.partitions)
 
 
     def __call__(self, weights_1d):
@@ -53,14 +53,7 @@ class LossAndFlatGradient:
         # Set the weights
         self.set_flat_weights(weights_1d)
         loss = self.build_loss()
-        # Calculate gradients and convert to 1D tf.Tensor
-        loss.backward()
-        grads = []
-        for param in self.trainable_variables:
-            grads.append(param.grad)
-        print("loss = ", loss)
-        print("grads = ", grads)
-        return self.to_flat_weights(grads)
+        return loss
 
     def dynamic_partition(self, weights_1d, partitions, param_num):
         weights_nd = []
@@ -102,13 +95,13 @@ def lbfgs_minimize(trainable_variables, build_loss, previous_optimizer_results=N
         trainable_variables: Trainable variables, also used as the initial position.
         build_loss: A function to build the loss function expression.
     """
-    print("orign : ", trainable_variables)
+    # print("orign : ", trainable_variables)
     func = LossAndFlatGradient(trainable_variables, build_loss)
-    print("after : ", trainable_variables)
+    # print("after : ", trainable_variables)
     initial_position = None
     if previous_optimizer_results is None:
         initial_position = func.to_flat_weights(trainable_variables)
-    print("initial_position = ", initial_position)
+    # print("initial_position = ", initial_position)
     LBFGS_options["iter_per_step"] = min(1000, LBFGS_options["maxiter"])
 
     results = paddle.incubate.optimizer.functional.minimize_lbfgs(

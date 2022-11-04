@@ -1,7 +1,14 @@
 """Backend supported: tensorflow.compat.v1, tensorflow, pytorch"""
 import deepxde as dde
-import numpy as np
 
+import os
+import numpy as np
+from deepxde.config import set_random_seed
+set_random_seed(100)
+
+task_name = os.path.basename(__file__).split(".")[0]
+log_dir = f"./{task_name}"
+os.makedirs(f"{log_dir}", exist_ok=True)
 
 a = 1
 d = 1
@@ -161,8 +168,22 @@ data = dde.data.TimePDE(
     num_test=10000,
 )
 
-net = dde.nn.FNN([4] + 4 * [50] + [4], "tanh", "Glorot normal")
+net = dde.nn.FNN([4] + 4 * [50] + [4], "tanh", "Glorot normal",task_name)
 
+new_save = False
+for name, param in net.named_parameters():
+    if os.path.exists(f"{log_dir}/{name}.npy"):
+        continue
+    new_save = True
+    np.save(f"{log_dir}/{name}.npy", param.numpy())
+    print(f"successfully save param {name} at [{log_dir}/{name}.npy]")
+
+if new_save:
+    print("第一次保存模型完毕，自动退出，请再次运行")
+    exit(0)
+else:
+    print("所有模型参数均存在，开始训练...............")
+    
 model = dde.Model(data, net)
 
 model.compile("adam", lr=1e-3, loss_weights=[1, 1, 1, 1, 100, 100, 100, 100, 100, 100])
