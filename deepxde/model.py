@@ -16,6 +16,7 @@ from .backend import backend_name, tf, torch, jax, paddle
 from .callbacks import CallbackList
 
 LOSS_FLAG = False
+NVPROF_FLAG = False
 class Model:
     """A ``Model`` trains a ``NN`` on a ``Data``.
 
@@ -289,7 +290,9 @@ class Model:
                 return self.net(inputs)
 
         def outputs_losses(training, inputs, targets, losses_fn):
+            torch.cuda.nvtx.range_push('net.train.complie')
             self.net.train(mode=training)
+            torch.cuda.nvtx.range_pop()
             if isinstance(inputs, tuple):
                 inputs = tuple(
                     map(lambda x: torch.as_tensor(x).requires_grad_(), inputs)
@@ -297,13 +300,15 @@ class Model:
             else:
                 inputs = torch.as_tensor(inputs)
                 inputs.requires_grad_()
-
+            
+            torch.cuda.nvtx.range_push('net.execute')
             # file_name1 = 'pytorch_net_input'
             # with open(file_name1,'ab') as f1:
             #     np.savetxt(f1,utils.to_numpy(inputs),delimiter=",")
 
             outputs_ = self.net(inputs)
-
+            torch.cuda.nvtx.range_pop()
+            
             # file_name = 'pytorch_net_output'
             # with open(file_name,'ab') as f:
             #     np.savetxt(f,utils.to_numpy(outputs_),delimiter=",")
@@ -311,19 +316,27 @@ class Model:
             # Data losses
             if targets is not None:
                 targets = torch.as_tensor(targets)
+            torch.cuda.nvtx.range_push('losses_compute')
             losses = losses_fn(targets, outputs_, loss_fn, inputs, self)
+            torch.cuda.nvtx.range_pop()
+
             if not isinstance(losses, list):
                 losses = [losses]
+            torch.cuda.nvtx.range_push('losses_stack')
             losses = torch.stack(losses)
-
+            torch.cuda.nvtx.range_pop()
             # file_name2 = 'pytorch_losses'
             # with open(file_name2,'ab') as f2:
             #     np.savetxt(f2,utils.to_numpy(losses),delimiter=",")
             # Weighted losses
+            torch.cuda.nvtx.range_push('losses_weight')
             if loss_weights is not None:
                 losses *= torch.as_tensor(loss_weights)
+            torch.cuda.nvtx.range_pop()
             # Clear cached Jacobians and Hessians.
+            torch.cuda.nvtx.range_push('grad_clear')
             grad.clear()
+            torch.cuda.nvtx.range_pop()
             return outputs_, losses
 
         def outputs_losses_train(inputs, targets):
@@ -359,22 +372,30 @@ class Model:
 
         def train_step(inputs, targets):
             def closure():
+                torch.cuda.nvtx.range_push('outputs_losses_train')
                 losses = outputs_losses_train(inputs, targets)[1]
+                torch.cuda.nvtx.range_pop()
+
+                torch.cuda.nvtx.range_push('sum_losses')
                 total_loss = torch.sum(losses)
+                torch.cuda.nvtx.range_pop()
                 if LOSS_FLAG:
                     print(f"{total_loss.item():.10f}")
 
                 # file_name3 = 'pytorch_dygrqaph_loss.log'
                 # with open(file_name3, 'ab') as f3:
                 #     np.savetxt(f3, utils.to_numpy(total_loss).reshape(1,-1), delimiter=",")
-                
-                total_loss.backward()
-                
+                torch.cuda.nvtx.range_push('opt_zero_grad')
                 self.opt.zero_grad()
+                torch.cuda.nvtx.range_pop()
+                torch.cuda.nvtx.range_push('backward')
                 total_loss.backward()
+                torch.cuda.nvtx.range_pop()
                 return total_loss
 
+            torch.cuda.nvtx.range_push('opt.step')
             self.opt.step(closure)
+            torch.cuda.nvtx.range_pop()
             # if self.lr_scheduler is not None:
             #     self.lr_scheduler.step()
 
@@ -452,28 +473,44 @@ class Model:
                 return self.net(paddle.to_tensor(inputs))
 
         def outputs_losses(training, inputs, targets, losses_fn):
+            paddle.fluid.core.nvprof_nvtx_push('net.train.compile')
             if training:
                 self.net.train()
             else:
                 self.net.eval()
+            paddle.fluid.core.nvprof_nvtx_pop()
+
             inputs = paddle.to_tensor(inputs, stop_gradient=False)
+
+            paddle.fluid.core.nvprof_nvtx_push('net.execute')
             outputs_ = self.net(inputs)
+            paddle.fluid.core.nvprof_nvtx_pop()
 
             # Data losses
             if targets is not None:
                 targets = paddle.to_tensor(targets)
+
+            paddle.fluid.core.nvprof_nvtx_push('losses_compute')
             losses = losses_fn(targets, outputs_, loss_fn, inputs, self)
+            paddle.fluid.core.nvprof_nvtx_pop()
+
             if not isinstance(losses, list):
                 losses = [losses]
             # TODO: regularization
+
+            paddle.fluid.core.nvprof_nvtx_push('losses_stack')
             losses = paddle.concat(losses, axis=0)
+            paddle.fluid.core.nvprof_nvtx_pop()
 
             # Weighted losses
+            paddle.fluid.core.nvprof_nvtx_push('losses_weight')
             if loss_weights is not None:
                 losses *= paddle.to_tensor(loss_weights)
+            paddle.fluid.core.nvprof_nvtx_pop()
             # Clear cached Jacobians and Hessians.
+            paddle.fluid.core.nvprof_nvtx_push('grad_clear')
             grad.clear()
-
+            paddle.fluid.core.nvprof_nvtx_pop()
             return outputs_, losses
 
         def outputs_losses_train(inputs, targets):
@@ -490,20 +527,31 @@ class Model:
         )
 
         def train_step(inputs, targets):
+            paddle.fluid.core.nvprof_nvtx_push('outputs_losses_train')
             losses = outputs_losses_train(inputs, targets)[1]
+            paddle.fluid.core.nvprof_nvtx_pop()
+
+            paddle.fluid.core.nvprof_nvtx_push('sum_losses')
             total_loss = paddle.sum(losses)
-            
+            paddle.fluid.core.nvprof_nvtx_pop()
             # file_name3 = 'paddle_dygraph_loss.log'
             # with open(file_name3, 'ab') as f3:
             #     np.savetxt(f3, utils.to_numpy(total_loss), delimiter=",")
-            
+            paddle.fluid.core.nvprof_nvtx_push('backward')
             total_loss.backward()
+            paddle.fluid.core.nvprof_nvtx_pop()
+
             if LOSS_FLAG:
                 print(f"{total_loss.item():.10f}")
 
+            paddle.fluid.core.nvprof_nvtx_push('opt.step')
             self.opt.step()
-            self.opt.clear_grad()
+            paddle.fluid.core.nvprof_nvtx_pop()
 
+            paddle.fluid.core.nvprof_nvtx_push('clear_grad')
+            self.opt.clear_grad()
+            paddle.fluid.core.nvprof_nvtx_pop()
+        
         # Callables
         self.outputs = outputs
         self.outputs_losses_train = outputs_losses_train
@@ -839,9 +887,9 @@ class Model:
             outs = outputs_losses(inputs, targets, auxiliary_vars)
         elif backend_name == "pytorch":
             # TODO: auxiliary_vars
-            # self.net.requires_grad_(requires_grad=False)
+            self.net.requires_grad_(requires_grad=False)
             outs = outputs_losses(inputs, targets)
-            # self.net.requires_grad_()
+            self.net.requires_grad_()
         elif backend_name == "jax":
             # TODO: auxiliary_vars
             outs = outputs_losses(self.params, inputs, targets)
@@ -939,7 +987,7 @@ class Model:
                                     self.data.losses_test)
         print("start_up_program end ...")
         # self._test()
-        # self.callbacks.on_train_begin()
+        self.callbacks.on_train_begin()
         if optimizers.is_external_optimizer(self.opt_name):
             if backend_name == "tensorflow.compat.v1":
                 self._train_tensorflow_compat_v1_scipy(display_every)
@@ -951,10 +999,16 @@ class Model:
             if iterations is None:
                 raise ValueError("No iterations for {}.".format(self.opt_name))
             
-            self.callbacks.on_train_begin()
+            import time
+            start_time = time.time()
             self._train_sgd(iterations, display_every)
-            self.callbacks.on_train_end()
-        #self.callbacks.on_train_end()
+            end_time = time.time()
+            if backend_name == 'paddle':
+                paddle.fluid.core._cuda_synchronize(paddle.CUDAPlace(paddle.distributed.get_rank()))
+            elif backend_name == 'pytorch':
+                torch.cuda.synchronize()
+            print("train_time = ", end_time - start_time)
+        self.callbacks.on_train_end()
 
         print("")
         # display.training_display.summary(self.train_state)
@@ -970,11 +1024,39 @@ class Model:
             self.train_state.set_data_train(
                 *self.data.train_next_batch(self.batch_size)
             )
+            
+            if NVPROF_FLAG :
+                if backend_name == 'paddle':
+                    if self.train_state.step == 10 :
+                        paddle.fluid.core.nvprof_start()
+                        paddle.fluid.core.nvprof_enable_record_event()
+                        paddle.fluid.core.nvprof_nvtx_push(str(self.train_state.step))
+                    if self.train_state.step == 20 :
+                        paddle.fluid.core.nvprof_nvtx_pop()
+                        paddle.fluid.core.nvprof_stop()
+                        import sys
+                        sys.exit()
+                    if self.train_state.step > 10 and self.train_state.step < 20:
+                        paddle.fluid.core.nvprof_nvtx_pop()
+                        paddle.fluid.core.nvprof_nvtx_push(str(self.train_state.step))
+                elif backend_name == 'pytorch':
+                    if self.train_state.step == 10 :
+                        torch.cuda.cudart().cudaProfilerStart()
+                        torch.cuda.nvtx.range_push(str(self.train_state.step))
+                    if self.train_state.step == 20 :
+                        torch.cuda.nvtx.range_pop()
+                        torch.cuda.cudart().cudaProfilerStop()
+                        import sys
+                        sys.exit()
+                    if self.train_state.step > 10 and self.train_state.step < 20:
+                        torch.cuda.nvtx.range_pop()
+                        torch.cuda.nvtx.range_push(str(self.train_state.step))
+            
             self._train_step(
                 self.train_state.X_train,
                 self.train_state.y_train,
                 self.train_state.train_aux_vars,
-            )
+            )        
 
             self.train_state.epoch += 1
             self.train_state.step += 1
