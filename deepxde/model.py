@@ -253,7 +253,7 @@ class Model:
             trainable_variables = (
                 self.net.trainable_variables + self.external_trainable_variables
             )
-            
+
             if LOSS_FLAG:
                 print(f"{total_loss.item():.10f}")
 
@@ -490,7 +490,7 @@ class Model:
 
         self.opt = optimizers.get(
                 trainable_variables, self.opt_name, learning_rate=lr, decay=decay)
-                
+
 
         def train_step(inputs, targets, auxiliary_vars):
             losses = outputs_losses_train(inputs, targets, auxiliary_vars)[1]
@@ -885,9 +885,11 @@ class Model:
             self.train_step(inputs, targets, auxiliary_vars)
             if hasattr(self.opt, '_learning_rate') and \
                     isinstance(self.opt._learning_rate, paddle.optimizer.lr.LRScheduler):
+                # 动态图/静态图统一在此处（self.train_step外部）更新学习率
                 self.opt._learning_rate.step()
-                # 打印学习率
-                # print(self.opt._learning_rate.get_lr())
+
+            # 打印学习率
+            # print(f"{self.opt._learning_rate.get_lr():.10f}")
 
         elif backend_name == "jax":
             # TODO: auxiliary_vars
@@ -967,7 +969,7 @@ class Model:
                                     self.data.losses_train,
                                     self.data.losses_test)
         print("start_up_program end ...")
-        # self._test()
+        self._test()
         self.callbacks.on_train_begin()
         if optimizers.is_external_optimizer(self.opt_name):
             if backend_name == "tensorflow.compat.v1":
@@ -1007,8 +1009,8 @@ class Model:
 
             self.train_state.epoch += 1
             self.train_state.step += 1
-            # if self.train_state.step % display_every == 0 or i + 1 == iterations:
-            #     self._test()
+            if self.train_state.step % display_every == 0 or i + 1 == iterations:
+                self._test()
 
             self.callbacks.on_batch_end()
             self.callbacks.on_epoch_end()
@@ -1112,6 +1114,7 @@ class Model:
                 self.train_state.y_train,
                 self.train_state.train_aux_vars,
             )
+
             count =int(results[1].numpy()) 
             n_iter += count
             print("n_iter: ",n_iter)
@@ -1124,6 +1127,7 @@ class Model:
             # print("result[2]", results[2])
             # print("result[3]", results[3])
             # print("result[4]", results[4])
+
             if results[0] :
                 break
 
@@ -1157,6 +1161,7 @@ class Model:
             ]
 
         self.train_state.update_best()
+        print( "&&&&&&&&&&&&&&&&&%train_state.best_step", self.train_state.best_step)
         self.losshistory.append(
             self.train_state.step,
             self.train_state.loss_train,
