@@ -253,6 +253,10 @@ class Model:
             trainable_variables = (
                 self.net.trainable_variables + self.external_trainable_variables
             )
+            
+            if LOSS_FLAG:
+                print(f"{total_loss.item():.10f}")
+
             grads = tape.gradient(total_loss, trainable_variables)
             opt.apply_gradients(zip(grads, trainable_variables))
 
@@ -1098,6 +1102,7 @@ class Model:
 
     def _train_paddle_lbfgs(self):
         n_iter = 0
+        print("optimizers.LBFGS_options[maxiter] :", optimizers.LBFGS_options["maxiter"])
         while n_iter < optimizers.LBFGS_options["maxiter"]:
             self.train_state.set_data_train(
                 *self.data.train_next_batch(self.batch_size)
@@ -1107,12 +1112,19 @@ class Model:
                 self.train_state.y_train,
                 self.train_state.train_aux_vars,
             )
-            n_iter += results.num_iterations.numpy()
-            self.train_state.epoch += results.num_iterations.numpy()
-            self.train_state.step += results.num_iterations.numpy()
+            count =int(results[1].numpy()) 
+            n_iter += count
+            print("n_iter: ",n_iter)
+            self.train_state.epoch += count
+            self.train_state.step += count
             self._test()
-
-            if results.converged or results.failed:
+ 
+            print("result[0]", results[0])
+            # print("result[1]", results[1])
+            # print("result[2]", results[2])
+            # print("result[3]", results[3])
+            # print("result[4]", results[4])
+            if results[0] :
                 break
 
     def _test(self):

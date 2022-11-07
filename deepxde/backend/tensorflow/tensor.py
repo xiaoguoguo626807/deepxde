@@ -140,3 +140,6 @@ def zeros(shape, dtype):
 def zeros_like(input_tensor):
     return tf.zeros_like(input_tensor)
 
+
+def matmul(x, y):
+    return tf.matmul(x, y)
