@@ -3,7 +3,7 @@ from distutils.version import LooseVersion
 
 import paddle
 
-if LooseVersion(paddle.__version__) < LooseVersion("2.3.0") and LooseVersion(paddle.__version__) != LooseVersion("0.0.0") :
+if LooseVersion(paddle.__version__) < LooseVersion("2.3.0") and LooseVersion(paddle.__version__) != LooseVersion("0.0.0"):
     raise RuntimeError("DeepXDE requires PaddlePaddle>=2.3.0")
 
 if paddle.device.is_compiled_with_cuda():
@@ -34,6 +34,10 @@ def shape(input_tensor):
     return input_tensor.shape
 
 
+def tensor_shape(input_tensor):
+    return paddle.shape(input_tensor)
+
+
 def ndim(input_tensor):
     return input_tensor.ndim
 
@@ -50,7 +54,7 @@ def reshape(tensor, shape):
 
 def Variable(initial_value, dtype=None):
     if paddle.in_dynamic_mode():
-        return paddle.to_tensor(initial_value, dtype=dtype, stop_gradient=False)
+        return paddle.create_parameter(shape=[], dtype="float32", default_initializer=paddle.nn.initializer.Constant(value=initial_value))
     else:
         return paddle.static.create_parameter(shape=[1], dtype='float32', default_initializer=paddle.nn.initializer.Constant(value=initial_value))
 
@@ -147,18 +151,23 @@ def size(tensor):
     return paddle.numel(tensor)
 
 
-def SparseTensor(indices, values, shape):
+def SparseTensor(indices: list, values, shape):
     x = [p[0] for p in indices]  # [num_of_nonzero(s), ]
     y = [p[1] for p in indices]  # [num_of_nonzero(s), ]
     indices = paddle.stack(
         (paddle.to_tensor(x), paddle.to_tensor(y))
     )  # [2(x,y), num_of_nonzero(s)]
-    values = paddle.to_tensor(values, dtype="float32")
+    if not is_tensor(values):
+        values = paddle.to_tensor(values, dtype="float32", stop_gradient=False)
     if values.ndim >= 2 and values.shape[-1] == 1:
         values = paddle.squeeze(values, axis=-1)
     if not isinstance(shape, list):
         shape = list(shape)
-    return paddle.sparse.sparse_coo_tensor(indices=indices, values=values, shape=shape)
+
+    # 可以用 scatter_nd 产生denseTensor绕过稀疏矩阵
+    # ret = paddle.scatter_nd(indices.t(), values, shape=shape)
+    # return ret
+    return paddle.sparse.sparse_coo_tensor(indices=indices, values=values, shape=shape, stop_gradient=False)
 
 
 def sparse_tensor_dense_matmul(x, y):
@@ -172,7 +181,7 @@ def ones(shape, dtype):
 
 
 def constant(values, dtype):
-    return paddle.to_tensor(values, dtype=dtype)
+    return paddle.to_tensor(values, dtype=dtype, stop_gradient=False)
 
 
 def concat(values, axis):
@@ -196,4 +205,9 @@ def roll(tensor, shift, axis=None):
 
 
 def gradients(x, y):
-    return paddle.grad(x, y)
+    if paddle.in_dynamic_mode():
+        # for dynamic graph
+        return paddle.grad(x, y, create_graph=True)
+    else:
+        # for static graph
+        return paddle.static.gradients(x, y)

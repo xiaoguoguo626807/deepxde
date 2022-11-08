@@ -103,14 +103,14 @@ class FPDE(PDE):
             f = [f]
         f = [fi[bcs_start[-1] :] for fi in f]
         losses = [
-            loss_fn(bkd.zeros(bkd.shape(fi), dtype=config.real(bkd.lib)), fi) for fi in f
+            loss_fn(bkd.zeros(bkd.tensor_shape(fi), dtype=config.real(bkd.lib)), fi) for fi in f
         ]
 
         for i, bc in enumerate(self.bcs):
             beg, end = bcs_start[i], bcs_start[i + 1]
             error = bc.error(self.train_x, inputs, outputs, beg, end)
             losses.append(
-                loss_fn(bkd.zeros(bkd.shape(error), dtype=config.real(bkd.lib)), error)
+                loss_fn(bkd.zeros(bkd.tensor_shape(error), dtype=config.real(bkd.lib)), error)
             )
         return losses
 
@@ -120,7 +120,7 @@ class FPDE(PDE):
         if not isinstance(f, (list, tuple)):
             f = [f]
         return [
-            loss_fn(bkd.zeros(bkd.shape(fi), dtype=config.real(bkd.lib)), fi) for fi in f
+            loss_fn(bkd.zeros(bkd.tensor_shape(fi), dtype=config.real(bkd.lib)), fi) for fi in f
         ] + [bkd.constant(0, dtype=config.real(bkd.lib)) for _ in self.bcs]
 
     @run_if_all_none("train_x", "train_y")
@@ -146,7 +146,7 @@ class FPDE(PDE):
             self.frac_train = Fractional(self.alpha, self.geom, self.disc, x_f)
             X = self.frac_train.get_x()
 
-        self.train_x = np.vstack((x_bc, X))
+        self.train_x = np.vstack((x_bc, X)).astype("float32")
         self.train_y = self.soln(self.train_x) if self.soln else None
         return self.train_x, self.train_y
 
@@ -650,7 +650,7 @@ class FractionalTime:
 
     def get_matrix_static(self):
         # Only consider the inside points
-        print("Warning: assume zero boundary condition.")
+        # print("Warning: assume zero boundary condition.")
         n = (self.disc.resolution[0] - 2) * (self.nt - 1)
         int_mat = np.zeros((n, n), dtype=config.real(np))
         self.fracx = Fractional(self.alpha, self.geom, self.disc, None)

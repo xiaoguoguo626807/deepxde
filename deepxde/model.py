@@ -13,9 +13,11 @@ from . import metrics as metrics_module
 from . import optimizers
 from . import utils
 from .backend import backend_name, tf, torch, jax, paddle
+import deepxde as dde
 from .callbacks import CallbackList
 
 LOSS_FLAG = True
+LR_FLAG = False
 class Model:
     """A ``Model`` trains a ``NN`` on a ``Data``.
 
@@ -51,10 +53,12 @@ class Model:
             self.extra_fetch_var = []  # for later access
         elif backend_name == "pytorch":
             self.lr_scheduler = None
+            self.extra_fetch_var = []
         elif backend_name == "jax":
             self.opt_state = None
             self.params = None
         elif backend_name == "paddle":
+            self.extra_fetch_var = []
             if not paddle.in_dynamic_mode():
                 self.static_start_up = None
                 self.exe = None
@@ -62,7 +66,7 @@ class Model:
                 self.feeds = dict()
                 self.fetches = dict()
 
-                #train elements
+                # train elements
                 self.train_program = None
                 self.train_targets = dict()
                 self.train_losses = None
@@ -74,7 +78,6 @@ class Model:
                 self.test_losses = None
                 self.test_outputs = None
                 self.var_list = []
-                self.extra_fetch_var = []
 
 
     @utils.timing
@@ -749,7 +752,6 @@ class Model:
             for i in range(len(self.var_list)):
                 self.extra_fetch_var.append(static_out[i+1])
             return static_out[-1]
-
 
         def outputs_losses(training, inputs, targets, losses_fn):
             self.feeds = dict()

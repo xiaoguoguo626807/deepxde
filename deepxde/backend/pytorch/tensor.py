@@ -48,6 +48,10 @@ def shape(input_tensor):
     return list(input_tensor.shape)
 
 
+def tensor_shape(input_tensor):
+    return input_tensor.shape
+
+
 def ndim(input_tensor):
     return input_tensor.dim()
 
@@ -163,9 +167,20 @@ def size(tensor):
 
 
 def SparseTensor(indices, values, shape):
+    x = [p[0] for p in indices]  # [num_of_nonzero(s), ]
+    y = [p[1] for p in indices]  # [num_of_nonzero(s), ]
+    indices = torch.stack(
+        (torch.as_tensor(x), torch.as_tensor(y))
+    )  # [2(x,y), num_of_nonzero(s)]
+    values = torch.as_tensor(values, dtype=torch.float32)
+    if values.ndim >= 2 and values.shape[-1] == 1:
+        values = torch.squeeze(values, dim=-1)
+    if not isinstance(shape, list):
+        shape = list(shape)
+
     coo_tensor = torch.sparse_coo_tensor(indices, values, shape)
     # pytorch仅支持CSR稀疏张量的tensor.matmul()
-    return coo_tensor.to_sparse_csr() # convert from COO to CSR
+    return coo_tensor.to_dense()  # convert from COO to CSR
 
 
 def sparse_tensor_dense_matmul(x, y):
@@ -193,7 +208,7 @@ def cos(x):
 
 
 def roll(tensor, shift, axis=None):
-    return torch.roll(tensor, shifts, axis)
+    return torch.roll(tensor, shift, axis)
 
 
 def gradients(x, y):
