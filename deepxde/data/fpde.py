@@ -650,7 +650,7 @@ class FractionalTime:
 
     def get_matrix_static(self):
         # Only consider the inside points
-        # print("Warning: assume zero boundary condition.")
+        print("Warning: assume zero boundary condition.")
         n = (self.disc.resolution[0] - 2) * (self.nt - 1)
         int_mat = np.zeros((n, n), dtype=config.real(np))
         self.fracx = Fractional(self.alpha, self.geom, self.disc, None)

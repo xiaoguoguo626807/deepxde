@@ -17,7 +17,6 @@ import deepxde as dde
 from .callbacks import CallbackList
 
 LOSS_FLAG = True
-LR_FLAG = False
 class Model:
     """A ``Model`` trains a ``NN`` on a ``Data``.
 
