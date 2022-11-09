@@ -2,7 +2,8 @@
 import deepxde as dde
 import matplotlib.pyplot as plt
 import numpy as np
-# from deepxde.backend import tf
+import deepxde.backend as bkd
+from deepxde.backend import backend_name
 import paddle
 from scipy.interpolate import griddata
 
@@ -25,21 +26,14 @@ def pde(x, y):
     dy_tt = dde.grad.hessian(y, x, i=1, j=1)
     dy_xx = dde.grad.hessian(y, x, i=0, j=0)
     x, t = x[:, 0:1], x[:, 1:2]
-    # return (
-    #     dy_tt
-    #     + alpha * dy_xx
-    #     + beta * y
-    #     + gamma * (y ** k)
-    #     + x * tf.cos(t)
-    #     - (x ** 2) * (tf.cos(t) ** 2)
-    # )
+    
     return (
         dy_tt
         + alpha * dy_xx
         + beta * y
         + gamma * (y ** k)
-        + x * paddle.cos(t)
-        - (x ** 2) * (paddle.cos(t) ** 2)
+        + x * bkd.cos(t)
+        - (x ** 2) * (bkd.cos(t) ** 2)
     )
 
 def func(x):
@@ -66,23 +60,50 @@ data = dde.data.TimePDE(
 )
 
 layer_size = [2] + [40] * 2 + [1]
+
+# w_array = []
+# if backend_name == "tensorflow":
+#     input_str = []
+#     import sys
+#     file_name1 = sys.argv[1]
+#     with open(file_name1, mode='r') as f1:
+#         for line in f1:
+#             input_str.append(line)
+#     print("input_str.size: ", len(input_str))
+#     j = 0
+#     for i in range(1, len(layer_size)):
+#         shape = (layer_size[i-1], layer_size[i])
+#         w_line = input_str[j]
+#         w = []
+#         tmp = w_line.split(',')
+#         for num in tmp:
+#             w.append(np.float(num))
+#         w = np.array(w).reshape(shape)
+#         print("w . shape :", w.shape)
+#         j = j+2
+#         w_array.append(w)
+
+
 activation = "tanh"
 initializer = "Glorot uniform"
+
 net = dde.nn.FNN(layer_size, activation, initializer, task_name)
 
-new_save = False
-for name, param in net.named_parameters():
-    if os.path.exists(f"{log_dir}/{name}.npy"):
-        continue
-    new_save = True
-    np.save(f"{log_dir}/{name}.npy", param.numpy())
-    print(f"successfully save param {name} at [{log_dir}/{name}.npy]")
+from deepxde.backend import backend_name
+if backend_name == 'paddle':
+    new_save = False
+    for name, param in net.named_parameters():
+        if os.path.exists(f"{log_dir}/{name}.npy"):
+            continue
+        new_save = True
+        np.save(f"{log_dir}/{name}.npy", param.numpy())
+        print(f"successfully save param {name} at [{log_dir}/{name}.npy]")
 
-if new_save:
-    print("第一次保存模型完毕，自动退出，请再次运行")
-    exit(0)
-else:
-    print("所有模型参数均存在，开始训练...............")
+    if new_save:
+        print("第一次保存模型完毕，自动退出，请再次运行")
+        exit(0)
+    else:
+        print("所有模型参数均存在，开始训练...............")
 
 
 model = dde.Model(data, net)

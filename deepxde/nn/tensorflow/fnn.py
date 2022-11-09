@@ -3,6 +3,8 @@ from .. import activations
 from .. import initializers
 from .. import regularizers
 from ...backend import tf
+import os
+import numpy as np
 
 
 class FNN(NN):
@@ -13,7 +15,7 @@ class FNN(NN):
         layer_sizes,
         activation,
         kernel_initializer,
-        w_array = [],
+        task_name = [],
         regularization=None,
         dropout_rate=0,
         use_bias = True,
@@ -25,36 +27,53 @@ class FNN(NN):
         self.denses = []
         activation = activations.get(activation)
         initializer = initializers.get(kernel_initializer)
-        for units in layer_sizes[1:-1]:
-        #for i in range(1,len(layer_sizes)):
-            #units = layer_sizes[i]
+        
+        if task_name == []:
+            for units in layer_sizes[1:-1]:
+                self.denses.append(
+                    tf.keras.layers.Dense(
+                        units,
+                        activation=activation,
+                        kernel_initializer=initializer,
+                        kernel_regularizer=self.regularizer,
+                    )
+                )
+                if self.dropout_rate > 0:
+                    self.denses.append(tf.keras.layers.Dropout(rate=self.dropout_rate))
+
             self.denses.append(
                 tf.keras.layers.Dense(
-                    units,
-                    activation=activation,
+                    layer_sizes[-1],
                     kernel_initializer=initializer,
                     kernel_regularizer=self.regularizer,
-                    use_bias = use_bias,
                 )
-                # tf.keras.layers.Dense(
-                #     units,
-                #     activation=activation,
-                #     kernel_initializer=tf.constant_initializer(w_array[i-1]),
-                #     kernel_regularizer=self.regularizer,
-                #     use_bias = use_bias,
-                # )
             )
-            
-            if self.dropout_rate > 0:
-                self.denses.append(tf.keras.layers.Dropout(rate=self.dropout_rate))
+        else:
+            for i in range(1,len(layer_sizes)):
+                units = layer_sizes[i]
+                if isinstance(task_name, str) and os.path.exists(f"./{task_name}/linears.{i-1}.weight.npy") and os.path.exists(f"./{task_name}/linears.{i-1}.bias.npy"):
+                    print("load param from file")
+                    weight = np.load(f"./{task_name}/linears.{i-1}.weight.npy")
+                    bias = np.load(f"./{task_name}/linears.{i-1}.bias.npy")
+                self.denses.append(
+                    tf.keras.layers.Dense(
+                        units,
+                        activation=activation,
+                        kernel_initializer=tf.constant_initializer(weight),
+                        bias_initializer=tf.constant_initializer(bias),
+                        kernel_regularizer=self.regularizer,
+                        use_bias = use_bias,
+                    )
+                )
+                
+                if self.dropout_rate > 0:
+                    self.denses.append(tf.keras.layers.Dropout(rate=self.dropout_rate))
 
-        self.denses.append(
-            tf.keras.layers.Dense(
-                layer_sizes[-1],
-                kernel_initializer=initializer,
-                kernel_regularizer=self.regularizer,
-            )
-        )
+        # f = open('tensorflow_param.log','ab')
+        # import numpy as np
+        # for linear in self.denses:
+        #     print(linear.trainable_weights)
+        # f.close()
 
     def call(self, inputs, training=False):
         y = inputs

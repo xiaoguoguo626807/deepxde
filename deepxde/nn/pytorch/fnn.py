@@ -23,15 +23,17 @@ class FNN(NN):
                     layer_sizes[i - 1], layer_sizes[i], dtype=config.real(torch)
                 )
             )
-
-            if isinstance(task_name, str) and os.path.exists(f"/home/wangruting/science/deepxde_wrt_44_orig/deepxde_wrt_44/{task_name}/linears.{i-1}.weight.npy") and os.path.exists(f"/home/wangruting/science/deepxde_wrt_44_orig/deepxde_wrt_44/{task_name}/linears.{i-1}.bias.npy"):
+            print("task_name: ", task_name)
+            if isinstance(task_name, str) and os.path.exists(f"./{task_name}/linears.{i-1}.weight.npy") and os.path.exists(f"./{task_name}/linears.{i-1}.bias.npy"):
                 print("load param from file")
-                weight = np.load(f"/home/wangruting/science/deepxde_wrt_44_orig/deepxde_wrt_44/{task_name}/linears.{i-1}.weight.npy")
-                bias = np.load(f"/home/wangruting/science/deepxde_wrt_44_orig/deepxde_wrt_44/{task_name}/linears.{i-1}.bias.npy")
+                weight = np.load(f"./{task_name}/linears.{i-1}.weight.npy")
+                bias = np.load(f"./{task_name}/linears.{i-1}.bias.npy")
                 # print("linear.weight_shape :", torch.Tensor(weight).shape)
                 # print("linear.bias_shape :", torch.Tensor(bias).shape)
                 self.linears[-1].weight = torch.nn.parameter.Parameter(torch.Tensor(weight).transpose(0,1))
                 self.linears[-1].bias = torch.nn.parameter.Parameter(torch.Tensor(bias))
+                # self.linears[-1].weight.data = torch.from_numpy(weight.T).cuda().contiguous()
+                # self.linears[-1].bias.data = torch.from_numpy(bias).cuda().contiguous()
             else:
                 print("init param from random")
                 initializer(self.linears[-1].weight)
@@ -46,7 +48,6 @@ class FNN(NN):
             tmp0 = linear.weight.cpu().detach().numpy()
             tmp0 = np.transpose(tmp0)
             tmp1 = linear.bias.cpu().detach().numpy()
-            tmp1 = np.transpose(tmp1)
             np.savetxt(f,tmp0.reshape(1,-1),delimiter=",")
             np.savetxt(f,tmp1.reshape(1,-1),delimiter=",")
         f.close()

@@ -54,7 +54,7 @@ class LossAndFlatGradient:
         # Set the weights
         self.set_flat_weights(weights_1d)
         loss = self.build_loss()
-        print ("loss: ", loss.numpy())
+        print ("loss: ", float(loss.numpy()))
         return loss
 
     def dynamic_partition(self, weights_1d, partitions, param_num):
@@ -110,12 +110,12 @@ def lbfgs_minimize(trainable_variables, build_loss, previous_optimizer_results=N
     results = paddle.incubate.optimizer.functional.minimize_lbfgs(
         func,
         initial_position=initial_position,
-        history_size=100, 
+        history_size=LBFGS_options["maxcor"], 
         max_iters=LBFGS_options["iter_per_step"], 
         tolerance_grad=LBFGS_options["gtol"], 
         tolerance_change=LBFGS_options["ftol"], 
         initial_inverse_hessian_estimate=None, 
-        # line_search_fn=None, 
+        line_search_fn='strong_wolfe',
         max_line_search_iters=LBFGS_options["maxls"], 
         initial_step_length=1.0, 
         dtype='float32', 

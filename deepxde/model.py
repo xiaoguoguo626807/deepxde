@@ -49,6 +49,7 @@ class Model:
             self.sess = None
             self.saver = None
             self.extra_fetch_var = []  # for later access
+            self.total_loss = None
         elif backend_name == "pytorch":
             self.lr_scheduler = None
         elif backend_name == "jax":
@@ -195,14 +196,14 @@ class Model:
 
         losses_train = losses(self.data.losses_train)
         losses_test = losses(self.data.losses_test)
-        total_loss = tf.math.reduce_sum(losses_train)
+        self.total_loss = tf.math.reduce_sum(losses_train)
 
         # Tensors
         self.outputs = self.net.outputs
         self.outputs_losses_train = [self.net.outputs, losses_train]
         self.outputs_losses_test = [self.net.outputs, losses_test]
         self.train_step = optimizers.get(
-            total_loss, self.opt_name, learning_rate=lr, decay=decay
+            self.total_loss, self.opt_name, learning_rate=lr, decay=decay
         )
 
     def _compile_tensorflow(self, lr, loss_fn, decay, loss_weights):
@@ -244,7 +245,7 @@ class Model:
 
         opt = optimizers.get(self.opt_name, learning_rate=lr, decay=decay)
 
-        @tf.function(jit_compile=config.xla_jit)
+        #@tf.function(jit_compile=config.xla_jit)
         def train_step(inputs, targets, auxiliary_vars):
             # inputs and targets are np.ndarray and automatically converted to Tensor.
             with tf.GradientTape() as tape:
@@ -255,7 +256,7 @@ class Model:
             )
 
             if LOSS_FLAG:
-                print(f"{total_loss.item():.10f}")
+                print(f"{total_loss:.10f}")
 
             grads = tape.gradient(total_loss, trainable_variables)
             opt.apply_gradients(zip(grads, trainable_variables))
@@ -875,13 +876,51 @@ class Model:
     def _train_step(self, inputs, targets, auxiliary_vars):
         if backend_name == "tensorflow.compat.v1":
             feed_dict = self.net.feed_dict(True, inputs, targets, auxiliary_vars)
-            self.sess.run(self.train_step, feed_dict=feed_dict)
+            # names = tf.global_variables()
+            # print(*names, sep='\n')
+            fetch_params_list_Klein_Gordon = [
+                'dense/kernel:0',
+                'dense/bias:0',
+                'dense_1/kernel:0',
+                'dense_1/bias:0',
+                'dense_2/kernel:0',
+                'dense_2/bias:0',
+                'dense_3/kernel:0',
+                'dense_3/bias:0',
+            ]
+            maps = {
+                "dense/kernel:0":   "linears.0.weight",
+                "dense/bias:0":   "linears.0.bias",
+                "dense_1/kernel:0": "linears.1.weight",
+                "dense_1/bias:0": "linears.1.bias",
+                "dense_2/kernel:0": "linears.2.weight",
+                "dense_2/bias:0": "linears.2.bias",
+                "dense_3/kernel:0": "linears.3.weight",
+                "dense_3/bias:0": "linears.3.bias",
+            }
+            # # 获取参数并保存
+            tf_params = self.sess.run([*fetch_params_list_Klein_Gordon], feed_dict=feed_dict)
+            for i, name in enumerate(fetch_params_list_Klein_Gordon):
+                out_name = maps.get(name, name)
+                path = f".//{out_name}.npy"
+                np.save(path, tf_params[i])
+                print(f"param file saved at {path}")
+            exit(0)
+            _, total_loss = self.sess.run([self.train_step, self.total_loss,], feed_dict=feed_dict)
+            if LOSS_FLAG:
+                print(f"{total_loss.item():.10f}")
         elif backend_name == "tensorflow":
+            # file_name1 = 'tensorflow_net_input.log'
+            # with open(file_name1,'ab') as f1:
+            #     np.savetxt(f1,inputs,delimiter=",")
             self.train_step(inputs, targets, auxiliary_vars)
         elif backend_name == "pytorch":
             # TODO: auxiliary_varsee
             self.train_step(inputs, targets)
         elif backend_name == "paddle":
+            # file_name1 = 'paddle_net_input.log'
+            # with open(file_name1,'ab') as f1:
+            #     np.savetxt(f1,inputs,delimiter=",")
             self.train_step(inputs, targets, auxiliary_vars)
             if hasattr(self.opt, '_learning_rate') and \
                     isinstance(self.opt._learning_rate, paddle.optimizer.lr.LRScheduler):
@@ -969,7 +1008,7 @@ class Model:
                                     self.data.losses_train,
                                     self.data.losses_test)
         print("start_up_program end ...")
-        self._test()
+        # self._test()
         self.callbacks.on_train_begin()
         if optimizers.is_external_optimizer(self.opt_name):
             if backend_name == "tensorflow.compat.v1":
@@ -1009,8 +1048,8 @@ class Model:
 
             self.train_state.epoch += 1
             self.train_state.step += 1
-            if self.train_state.step % display_every == 0 or i + 1 == iterations:
-                self._test()
+            # if self.train_state.step % display_every == 0 or i + 1 == iterations:
+            #     self._test()
 
             self.callbacks.on_batch_end()
             self.callbacks.on_epoch_end()
@@ -1094,6 +1133,7 @@ class Model:
             self.train_state.epoch += n_iter - prev_n_iter
             self.train_state.step += n_iter - prev_n_iter
             prev_n_iter = n_iter
+            print("n_iter: ", n_iter)
             self._test()
 
             self.callbacks.on_batch_end()
@@ -1117,7 +1157,7 @@ class Model:
 
             count =int(results[1].numpy()) 
             n_iter += count
-            print("n_iter: ",n_iter)
+            print("n_iter: ", n_iter)
             self.train_state.epoch += count
             self.train_state.step += count
             self._test()
@@ -1161,7 +1201,6 @@ class Model:
             ]
 
         self.train_state.update_best()
-        print( "&&&&&&&&&&&&&&&&&%train_state.best_step", self.train_state.best_step)
         self.losshistory.append(
             self.train_state.step,
             self.train_state.loss_train,

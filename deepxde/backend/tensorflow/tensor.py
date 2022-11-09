@@ -99,6 +99,10 @@ def sin(x):
     return tf.math.sin(x)
 
 
+def cos(x):
+    return tf.math.cos(x)
+
+
 def exp(x):
     return tf.exp(x)
 
@@ -143,3 +147,15 @@ def zeros_like(input_tensor):
 
 def matmul(x, y):
     return tf.matmul(x, y)
+
+
+def gradients(x, y):
+    return tf.gradients(x, y)
+
+
+def size(tensor):
+    return tf.size(tensor)
+
+
+def constant(values, dtype):
+    return tf.constant(values, dtype=dtype)

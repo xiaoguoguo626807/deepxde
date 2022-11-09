@@ -41,6 +41,13 @@ class FNN(NN):
                 )
                 initializer(self.linears[-1].weight)
                 initializer_zero(self.linears[-1].bias)
+        
+        if paddle.in_dynamic_mode():
+            f = open('paddle_dygraph_param.log','ab')
+            for linear in self.linears:
+                np.savetxt(f,linear.weight.numpy().reshape(1,-1),delimiter=",")
+                np.savetxt(f,linear.bias.numpy().reshape(1,-1),delimiter=",")
+            f.close()
 
     def forward(self, inputs):
         x = inputs

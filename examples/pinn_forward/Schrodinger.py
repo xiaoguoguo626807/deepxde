@@ -103,19 +103,38 @@ data = dde.data.TimePDE(
 # Network architecture
 net = dde.nn.FNN([2] + [100] * 4 + [2], "tanh", "Glorot normal", task_name)
 
-new_save = False
-for name, param in net.named_parameters():
-    if os.path.exists(f"{log_dir}/{name}.npy"):
-        continue
-    new_save = True
-    np.save(f"{log_dir}/{name}.npy", param.numpy())
-    print(f"successfully save param {name} at [{log_dir}/{name}.npy]")
+from deepxde.backend import backend_name
+if backend_name == 'pytorch':
+    new_save = False
+    i = 0
+    for name, param in net.named_parameters():
+        if os.path.exists(f"{log_dir}/{name}.npy"):
+            continue
+        new_save = True
+        if i % 2 == 0:
+            np.save(f"{log_dir}/{name}.npy", np.transpose(param.cpu().detach().numpy()))
+        else:
+            np.save(f"{log_dir}/{name}.npy", param.cpu().detach().numpy())
+        print(f"successfully save param {name} at [{log_dir}/{name}.npy]")
+        i += 1
+    if new_save:
+        print("初始化模型参数保存完毕")
+        exit(0)
+    else:
+        print("所有模型参数均存在，开始训练...............")
+# new_save = False
+# for name, param in net.named_parameters():
+#     if os.path.exists(f"{log_dir}/{name}.npy"):
+#         continue
+#     new_save = True
+#     np.save(f"{log_dir}/{name}.npy", param.numpy())
+#     print(f"successfully save param {name} at [{log_dir}/{name}.npy]")
 
-if new_save:
-    print("第一次保存模型完毕，自动退出，请再次运行")
-    exit(0)
-else:
-    print("所有模型参数均存在，开始训练...............")
+# if new_save:
+#     print("第一次保存模型完毕，自动退出，请再次运行")
+#     exit(0)
+# else:
+#     print("所有模型参数均存在，开始训练...............")
 
 
 model = dde.Model(data, net)

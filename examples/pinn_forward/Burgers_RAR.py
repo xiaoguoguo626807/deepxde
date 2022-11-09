@@ -39,19 +39,40 @@ data = dde.data.TimePDE(
     geomtime, pde, [bc, ic], num_domain=2500, num_boundary=100, num_initial=160
 )
 net = dde.nn.FNN([2] + [20] * 3 + [1], "tanh", "Glorot normal",task_name)
-new_save = False
-for name, param in net.named_parameters():
-    if os.path.exists(f"{log_dir}/{name}.npy"):
-        continue
-    new_save = True
-    np.save(f"{log_dir}/{name}.npy", param.numpy())
-    print(f"successfully save param {name} at [{log_dir}/{name}.npy]")
 
-if new_save:
-    print("第一次保存模型完毕，自动退出，请再次运行")
-    exit(0)
-else:
-    print("所有模型参数均存在，开始训练...............")
+from deepxde.backend import backend_name
+if backend_name == 'pytorch':
+    new_save = False
+    i = 0
+    for name, param in net.named_parameters():
+        if os.path.exists(f"{log_dir}/{name}.npy"):
+            continue
+        new_save = True
+        if i % 2 == 0:
+            np.save(f"{log_dir}/{name}.npy", np.transpose(param.cpu().detach().numpy()))
+        else:
+            np.save(f"{log_dir}/{name}.npy", param.cpu().detach().numpy())
+        print(f"successfully save param {name} at [{log_dir}/{name}.npy]")
+        i += 1
+    if new_save:
+        print("初始化模型参数保存完毕")
+        exit(0)
+    else:
+        print("所有模型参数均存在，开始训练...............")
+
+# new_save = False
+# for name, param in net.named_parameters():
+#     if os.path.exists(f"{log_dir}/{name}.npy"):
+#         continue
+#     new_save = True
+#     np.save(f"{log_dir}/{name}.npy", param.numpy())
+#     print(f"successfully save param {name} at [{log_dir}/{name}.npy]")
+
+# if new_save:
+#     print("第一次保存模型完毕，自动退出，请再次运行")
+#     exit(0)
+# else:
+#     print("所有模型参数均存在，开始训练...............")
 
 model = dde.Model(data, net)
 
@@ -60,23 +81,23 @@ model.train(iterations=10000)
 model.compile("L-BFGS")
 model.train()
 
-X = geomtime.random_points(100000)
-err = 1
-while err > 0.005:
-    f = model.predict(X, operator=pde)
-    err_eq = np.absolute(f)
-    err = np.mean(err_eq)
-    print("Mean residual: %.3e" % (err))
+# X = geomtime.random_points(100000)
+# err = 1
+# while err > 0.005:
+#     f = model.predict(X, operator=pde)
+#     err_eq = np.absolute(f)
+#     err = np.mean(err_eq)
+#     print("Mean residual: %.3e" % (err))
 
-    x_id = np.argmax(err_eq)
-    print("Adding new point:", X[x_id], "\n")
-    data.add_anchors(X[x_id])
-    early_stopping = dde.callbacks.EarlyStopping(min_delta=1e-4, patience=2000)
-    model.compile("adam", lr=1e-3)
-    model.train(epochs=10000, disregard_previous_best=True, callbacks=[early_stopping])
-    model.compile("L-BFGS")
-    losshistory, train_state = model.train()
-dde.saveplot(losshistory, train_state, issave=True, isplot=True)
+#     x_id = np.argmax(err_eq)
+#     print("Adding new point:", X[x_id], "\n")
+#     data.add_anchors(X[x_id])
+#     early_stopping = dde.callbacks.EarlyStopping(min_delta=1e-4, patience=2000)
+#     model.compile("adam", lr=1e-3)
+#     model.train(epochs=10000, disregard_previous_best=True, callbacks=[early_stopping])
+#     model.compile("L-BFGS")
+#     losshistory, train_state = model.train()
+# dde.saveplot(losshistory, train_state, issave=True, isplot=True)
 
 X, y_true = gen_testdata()
 y_pred = model.predict(X)

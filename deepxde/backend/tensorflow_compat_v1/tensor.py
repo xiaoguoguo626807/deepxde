@@ -210,3 +210,7 @@ def cos(tensor):
 
 def roll(tensor, shift, axis=None):
     return tf.roll(tensor, shift, axis)
+
+
+def gradients(x, y):
+    return tf.gradients(x, y)

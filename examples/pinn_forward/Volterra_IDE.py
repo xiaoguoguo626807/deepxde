@@ -4,7 +4,7 @@ import deepxde as dde
 import matplotlib.pyplot as plt
 import numpy as np
 import deepxde.backend as bkd
-from deepxde.backend import tf
+from deepxde.backend import backend_name
 import paddle
 
 import os
@@ -47,31 +47,55 @@ data = dde.data.IDE(
 )
 print("*********************")
 layer_size = [1] + [20] * 3 + [1]
+
+# paddle init param
+# w_array = []
+# if backend_name == "tensorflow":
+#     input_str = []
+#     import sys
+#     file_name1 = sys.argv[1]
+#     with open(file_name1, mode='r') as f1:
+#         for line in f1:
+#             input_str.append(line)
+#     print("input_str.size: ", len(input_str))
+#     j = 0
+#     for i in range(1, len(layer_size)):
+#         shape = (layer_size[i-1], layer_size[i])
+#         w_line = input_str[j]
+#         w = []
+#         tmp = w_line.split(',')
+#         for num in tmp:
+#             w.append(np.float(num))
+#         w = np.array(w).reshape(shape)
+#         print("w . shape :", w.shape)
+#         j = j+2
+#         w_array.append(w)
+
 activation = "tanh"
 initializer = "Glorot uniform"
+
+
 net = dde.nn.FNN(layer_size, activation, initializer, task_name)
 
-new_save = False
-for name, param in net.named_parameters():
-    if os.path.exists(f"{log_dir}/{name}.npy"):
-        continue
-    new_save = True
-    np.save(f"{log_dir}/{name}.npy", param.numpy())
-    print(f"successfully save param {name} at [{log_dir}/{name}.npy]")
+from deepxde.backend import backend_name
+if backend_name == 'paddle':
+    new_save = False
+    for name, param in net.named_parameters():
+        if os.path.exists(f"{log_dir}/{name}.npy"):
+            continue
+        new_save = True
+        np.save(f"{log_dir}/{name}.npy", param.numpy())
+        print(f"successfully save param {name} at [{log_dir}/{name}.npy]")
 
-if new_save:
-    print("第一次保存模型完毕，自动退出，请再次运行")
-    exit(0)
-else:
-    print("所有模型参数均存在，开始训练...............")
+    if new_save:
+        print("第一次保存模型完毕，自动退出，请再次运行")
+        exit(0)
+    else:
+        print("所有模型参数均存在，开始训练...............")
     
 model = dde.Model(data, net)
 model.compile("L-BFGS")
 model.train()
-
-# an temporary alternative with adam optimizer
-# model.compile("adam", lr=1e-3)
-# model.train(iterations=10000)
 
 X = geom.uniform_points(100)
 y_true = func(X)
