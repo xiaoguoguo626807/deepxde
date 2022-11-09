@@ -180,7 +180,7 @@ def SparseTensor(indices, values, shape):
 
     coo_tensor = torch.sparse_coo_tensor(indices, values, shape)
     # pytorch仅支持CSR稀疏张量的tensor.matmul()
-    return coo_tensor.to_dense()  # convert from COO to CSR
+    return coo_tensor.to_sparse_csr()  # convert from COO to CSR
 
 
 def sparse_tensor_dense_matmul(x, y):
