@@ -19,11 +19,13 @@ def get(params, optimizer, learning_rate=None, decay=None, weight_decay=0):
             raise ValueError("L-BFGS optimizer doesn't support weight_decay > 0")
         if learning_rate is not None or decay is not None:
             print("Warning: learning rate is ignored for {}".format(optimizer))
+        paddle_max_eval = LBFGS_options["iter_per_step"] * 25 # max_iter * max_line_search_iter
         optim = torch.optim.LBFGS(
             params,
             lr=1,
             max_iter=LBFGS_options["iter_per_step"],
-            max_eval=LBFGS_options["fun_per_step"],
+            # max_eval=LBFGS_options["fun_per_step"],
+            max_eval=paddle_max_eval,
             tolerance_grad=LBFGS_options["gtol"],
             tolerance_change=LBFGS_options["ftol"],
             history_size=LBFGS_options["maxcor"],

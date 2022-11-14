@@ -74,7 +74,7 @@ layer_size = [1] + [20] * 3 + [1]
 activation = "tanh"
 initializer = "Glorot uniform"
 
-
+# net = dde.nn.FNN(layer_size, activation, initializer)
 net = dde.nn.FNN(layer_size, activation, initializer, task_name)
 
 from deepxde.backend import backend_name
@@ -96,6 +96,9 @@ if backend_name == 'paddle':
 model = dde.Model(data, net)
 model.compile("L-BFGS")
 model.train()
+
+# model.compile("adam", lr=1e-3)
+# model.train(iterations=1)
 
 X = geom.uniform_points(100)
 y_true = func(X)

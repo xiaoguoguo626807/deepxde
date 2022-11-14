@@ -11,6 +11,13 @@ import numpy as np
 import scipy as sp
 from scipy.integrate import odeint
 
+from deepxde.backend import backend_name
+from deepxde.config import set_random_seed
+set_random_seed(58)
+import os
+task_name = os.path.basename(__file__).split(".")[0]
+log_dir = f"./{task_name}"
+os.makedirs(f"{log_dir}", exist_ok=True)
 
 # Generate data
 # true values, see p. 15 in https://arxiv.org/abs/1907.04502
@@ -45,14 +52,23 @@ def LorezODE(x, t):
 # initial condition
 x0 = [-8, 7, 27]
 
+print("&&&&&&&&&&&&&&&&&&&&&&&&&")
 # solve ODE
-x = odeint(LorezODE, x0, time)
+print("path: ", f"{log_dir}/LotKa_Volterra_x.log.npy")
+if os.path.exists(f"{log_dir}/LotKa_Volterra_x.log.npy"):
+    print("load x from file")
+    x = np.load(f"{log_dir}/LotKa_Volterra_x.log.npy")
+else:
+    print("raise x from odeint()")
+    x = odeint(LorezODE, x0, time)
+    np.save(f"{log_dir}/LotKa_Volterra_x.log", x)
 
 # plot results
 plt.plot(time, x, time, ex_input)
 plt.xlabel("time")
 plt.ylabel("x(t)")
 plt.show()
+print("&&&&&&&&&&&&&&&&&&&&&&&&&")
 
 time = time.reshape(-1, 1)
 
@@ -124,7 +140,41 @@ plt.title("Training data")
 plt.show()
 
 # define FNN architecture and compile
-net = dde.nn.FNN([1] + [40] * 3 + [3], "tanh", "Glorot uniform")
+net = dde.nn.FNN([1] + [40] * 3 + [3], "tanh", "Glorot uniform", task_name)
+
+if backend_name == 'pytorch':
+    new_save = False
+    i = 0
+    for name, param in net.named_parameters():
+        if os.path.exists(f"{log_dir}/{name}.npy"):
+            continue
+        new_save = True
+        if i % 2 == 0:
+            np.save(f"{log_dir}/{name}.npy", np.transpose(param.cpu().detach().numpy()))
+        else:
+            np.save(f"{log_dir}/{name}.npy", param.cpu().detach().numpy())
+        print(f"successfully save param {name} at [{log_dir}/{name}.npy]")
+        i += 1
+    if new_save:
+        print("初始化模型参数保存完毕")
+        exit(0)
+    else:
+        print("所有模型参数均存在，开始训练...............")
+if backend_name == 'paddle':
+    new_save = False
+    for name, param in net.named_parameters():
+        if os.path.exists(f"{log_dir}/paddle_param/{name}.npy"):
+            continue
+        new_save = True
+        np.save(f"{log_dir}/paddle_param/{name}.npy", param.numpy())
+        
+        print(f"successfully save param {name} at [{log_dir}/paddle_param/{name}.npy]")
+    if new_save:
+        print("初始化模型参数保存完毕")
+        exit(0)
+    else:
+        print("所有模型参数均存在，开始训练...............")
+
 model = dde.Model(data, net)
 model.compile("adam", lr=0.001, external_trainable_variables=[C1, C2, C3])
 

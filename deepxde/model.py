@@ -513,7 +513,6 @@ class Model:
                 list(self.net.parameters()) + self.external_trainable_variables
             )
 
-            print("trian_step_lbfgs: ")
             return self.opt(trainable_variables, build_loss, previous_optimizer_results)
 
         # Callables
@@ -878,34 +877,34 @@ class Model:
             feed_dict = self.net.feed_dict(True, inputs, targets, auxiliary_vars)
             # names = tf.global_variables()
             # print(*names, sep='\n')
-            fetch_params_list_Klein_Gordon = [
-                'dense/kernel:0',
-                'dense/bias:0',
-                'dense_1/kernel:0',
-                'dense_1/bias:0',
-                'dense_2/kernel:0',
-                'dense_2/bias:0',
-                'dense_3/kernel:0',
-                'dense_3/bias:0',
-            ]
-            maps = {
-                "dense/kernel:0":   "linears.0.weight",
-                "dense/bias:0":   "linears.0.bias",
-                "dense_1/kernel:0": "linears.1.weight",
-                "dense_1/bias:0": "linears.1.bias",
-                "dense_2/kernel:0": "linears.2.weight",
-                "dense_2/bias:0": "linears.2.bias",
-                "dense_3/kernel:0": "linears.3.weight",
-                "dense_3/bias:0": "linears.3.bias",
-            }
-            # # 获取参数并保存
-            tf_params = self.sess.run([*fetch_params_list_Klein_Gordon], feed_dict=feed_dict)
-            for i, name in enumerate(fetch_params_list_Klein_Gordon):
-                out_name = maps.get(name, name)
-                path = f".//{out_name}.npy"
-                np.save(path, tf_params[i])
-                print(f"param file saved at {path}")
-            exit(0)
+            # fetch_params_list_Lorenz_inverse_forced = [
+            #     'dense/kernel:0',
+            #     'dense/bias:0',
+            #     'dense_1/kernel:0',
+            #     'dense_1/bias:0',
+            #     'dense_2/kernel:0',
+            #     'dense_2/bias:0',
+            #     'dense_3/kernel:0',
+            #     'dense_3/bias:0',
+            # ]
+            # maps = {
+            #     "dense/kernel:0":   "linears.0.weight",
+            #     "dense/bias:0":   "linears.0.bias",
+            #     "dense_1/kernel:0": "linears.1.weight",
+            #     "dense_1/bias:0": "linears.1.bias",
+            #     "dense_2/kernel:0": "linears.2.weight",
+            #     "dense_2/bias:0": "linears.2.bias",
+            #     "dense_3/kernel:0": "linears.3.weight",
+            #     "dense_3/bias:0": "linears.3.bias",
+            # }
+            # # # 获取参数并保存
+            # tf_params = self.sess.run([*fetch_params_list_Lorenz_inverse_forced], feed_dict=feed_dict)
+            # for i, name in enumerate(fetch_params_list_Lorenz_inverse_forced):
+            #     out_name = maps.get(name, name)
+            #     path = f"./{out_name}.npy"
+            #     np.save(path, tf_params[i])
+            #     print(f"param file saved at {path}")
+            # exit(0)
             _, total_loss = self.sess.run([self.train_step, self.total_loss,], feed_dict=feed_dict)
             if LOSS_FLAG:
                 print(f"{total_loss.item():.10f}")
@@ -1112,6 +1111,7 @@ class Model:
 
     def _train_pytorch_lbfgs(self):
         prev_n_iter = 0
+        
         while prev_n_iter < optimizers.LBFGS_options["maxiter"]:
             self.callbacks.on_epoch_begin()
             self.callbacks.on_batch_begin()
@@ -1125,7 +1125,7 @@ class Model:
                 self.train_state.train_aux_vars,
             )
 
-            n_iter = self.opt.state_dict()["state"][0]["n_iter"]
+            n_iter = self.opt.state_dict()["state"][0]["func_evals"]
             if prev_n_iter == n_iter:
                 # Converged
                 break
@@ -1157,12 +1157,13 @@ class Model:
 
             count =int(results[1].numpy()) 
             n_iter += count
-            print("n_iter: ", n_iter)
+            
             self.train_state.epoch += count
             self.train_state.step += count
+            print("n_iter: ", n_iter)
             self._test()
  
-            print("result[0]", results[0])
+            # print("result[0]", results[0])
             # print("result[1]", results[1])
             # print("result[2]", results[2])
             # print("result[3]", results[3])

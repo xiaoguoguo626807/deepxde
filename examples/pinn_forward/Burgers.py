@@ -42,24 +42,24 @@ data = dde.data.TimePDE(
 net = dde.nn.FNN([2] + [20] * 3 + [1], "tanh", "Glorot normal",task_name)
 
 from deepxde.backend import backend_name
-if backend_name == 'pytorch':
-    new_save = False
-    i = 0
-    for name, param in net.named_parameters():
-        if os.path.exists(f"{log_dir}/{name}.npy"):
-            continue
-        new_save = True
-        if i % 2 == 0:
-            np.save(f"{log_dir}/{name}.npy", np.transpose(param.cpu().detach().numpy()))
-        else:
-            np.save(f"{log_dir}/{name}.npy", param.cpu().detach().numpy())
-        print(f"successfully save param {name} at [{log_dir}/{name}.npy]")
-        i += 1
-    if new_save:
-        print("初始化模型参数保存完毕")
-        exit(0)
-    else:
-        print("所有模型参数均存在，开始训练...............")
+# if backend_name == 'pytorch':
+#     new_save = False
+#     i = 0
+#     for name, param in net.named_parameters():
+#         if os.path.exists(f"{log_dir}/{name}.npy"):
+#             continue
+#         new_save = True
+#         if i % 2 == 0:
+#             np.save(f"{log_dir}/{name}.npy", np.transpose(param.cpu().detach().numpy()))
+#         else:
+#             np.save(f"{log_dir}/{name}.npy", param.cpu().detach().numpy())
+#         print(f"successfully save param {name} at [{log_dir}/{name}.npy]")
+#         i += 1
+#     if new_save:
+#         print("初始化模型参数保存完毕")
+#         exit(0)
+#     else:
+#         print("所有模型参数均存在，开始训练...............")
 
 # new_save = False
 # for name, param in net.named_parameters():
@@ -77,8 +77,27 @@ if backend_name == 'pytorch':
 
 model = dde.Model(data, net)
 
-model.compile("adam", lr=1e-3)
-model.train(iterations=15000)
+# model.compile("adam", lr=1e-3)
+# model.train(iterations=15000)#15000
+if backend_name == 'pytorch':
+    new_save = False
+    i = 0
+    for name, param in net.named_parameters():
+        if os.path.exists(f"{log_dir}/{name}.npy"):
+            continue
+        new_save = True
+        if i % 2 == 0:
+            np.save(f"{log_dir}/{name}.npy", np.transpose(param.cpu().detach().numpy()))
+        else:
+            np.save(f"{log_dir}/{name}.npy", param.cpu().detach().numpy())
+        print(f"successfully save param {name} at [{log_dir}/{name}.npy]")
+        i += 1
+    if new_save:
+        print("adam优化后模型参数保存完毕")
+        exit(0)
+    else:
+        print("所有模型参数均存在，开始训练...............")
+
 model.compile("L-BFGS")
 losshistory, train_state = model.train()
 dde.saveplot(losshistory, train_state, issave=True, isplot=True)

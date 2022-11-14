@@ -3,6 +3,7 @@ import numpy as np
 from .helper import one_function
 from .pde import PDE
 from .. import backend as bkd
+from ..backend import tf
 from .. import config
 
 from ..utils import run_if_all_none
@@ -56,16 +57,26 @@ class IDE(PDE):
         if not isinstance(f, (list, tuple)):
             f = [f]
         f = [fi[bcs_start[-1] :] for fi in f]
-        losses = [
-            loss_fn(bkd.zeros(bkd.shape(fi), dtype=config.real(bkd.lib)), fi) for fi in f
-        ]
+        if bkd.backend_name == "tensorflow.compat.v1":
+            losses = [
+                loss_fn(tf.zeros(tf.shape(fi), dtype=tf.float32), fi) for fi in f
+            ]
+        else:
+            losses = [
+                loss_fn(bkd.zeros(bkd.shape(fi), dtype=config.real(bkd.lib)), fi) for fi in f
+            ]
 
         for i, bc in enumerate(self.bcs):
             beg, end = bcs_start[i], bcs_start[i + 1]
             error = bc.error(self.train_x, inputs, outputs, beg, end)
-            losses.append(
-                loss_fn(bkd.zeros(bkd.shape(error), dtype=config.real(bkd.lib)), error)
-            )
+            if bkd.backend_name == "tensorflow.compat.v1":
+                losses.append(
+                    loss_fn(tf.zeros(tf.shape(error), dtype=tf.float32), error)
+                )
+            else:
+                losses.append(
+                    loss_fn(bkd.zeros(bkd.shape(error), dtype=config.real(bkd.lib)), error)
+                )
         return losses
 
     def losses_test(self, targets, outputs, loss_fn, inputs, model, aux=None):

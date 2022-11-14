@@ -5,7 +5,12 @@ import numpy as np
 import deepxde.backend as bkd
 # Import torch if using backend pytorch
 # import torch
-
+from deepxde.config import set_random_seed
+set_random_seed(100)
+import os
+task_name = os.path.basename(__file__).split(".")[0]
+log_dir = f"./{task_name}"
+os.makedirs(f"{log_dir}", exist_ok=True)
 
 def pde(x, y):
     dy_r = dde.grad.jacobian(y, x, i=0, j=0)
@@ -29,7 +34,7 @@ data = dde.data.PDE(
     geom, pde, bc_rad, num_domain=2540, num_boundary=80, solution=solution
 )
 
-net = dde.nn.FNN([2] + [20] * 3 + [1], "tanh", "Glorot normal")
+net = dde.nn.FNN([2] + [20] * 3 + [1], "tanh", "Glorot normal",task_name)
 
 # Use [r*sin(theta), r*cos(theta)] as features,
 # so that the network is automatically periodic along the theta coordinate.

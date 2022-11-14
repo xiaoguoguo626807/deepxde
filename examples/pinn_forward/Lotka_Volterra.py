@@ -6,13 +6,20 @@ from scipy import integrate
 # Import tf if using backend tensorflow.compat.v1 or tensorflow
 from deepxde.backend import tf
 # Import torch if using backend pytorch
-# import torch
+import torch
 import paddle
 # paddle.enable_static()
 # paddle.incubate.autograd.enable_prim()
+
+from deepxde.config import set_random_seed
+set_random_seed(48)
+import os
+task_name = os.path.basename(__file__).split(".")[0]
+log_dir = f"./{task_name}"
+os.makedirs(f"{log_dir}", exist_ok=True)
+
 ub = 200
 rb = 20
-
 
 def func(t, r):
     x, y = r
@@ -21,9 +28,7 @@ def func(t, r):
     return dx_t, dy_t
 
 
-def gen_truedata():
-    t = np.linspace(0, 1, 100)
-
+def gen_truedata(t):
     sol = integrate.solve_ivp(func, (0, 10), (100 / ub, 15 / ub), t_eval=t)
     x_true, y_true = sol.y
     x_true = x_true.reshape(100, 1)
@@ -49,7 +54,27 @@ data = dde.data.PDE(geom, ode_system, [], 3000, 2, num_test=3000)
 layer_size = [1] + [64] * 6 + [2]
 activation = "tanh"
 initializer = "Glorot normal"
-net = dde.nn.FNN(layer_size, activation, initializer)
+net = dde.nn.FNN(layer_size, activation, initializer, task_name)
+
+from deepxde.backend import backend_name
+if backend_name == 'pytorch':
+    new_save = False
+    i = 0
+    for name, param in net.named_parameters():
+        if os.path.exists(f"{log_dir}/{name}.npy"):
+            continue
+        new_save = True
+        if i % 2 == 0:
+            np.save(f"{log_dir}/{name}.npy", np.transpose(param.cpu().detach().numpy()))
+        else:
+            np.save(f"{log_dir}/{name}.npy", param.cpu().detach().numpy())
+        print(f"successfully save param {name} at [{log_dir}/{name}.npy]")
+        i += 1
+    if new_save:
+        print("初始化模型参数保存完毕")
+        exit(0)
+    else:
+        print("所有模型参数均存在，开始训练...............")
 
 # Backend tensorflow.compat.v1 or tensorflow
 def input_transform(t):
@@ -71,14 +96,32 @@ def input_transform(t):
         ),
         axis=1,
     )
-# Backend pytorch
-# def input_transform(t):
-#     return torch.cat(
-#         [
-#             torch.sin(t),
-#         ],
-#         dim=1,
-#     )
+if backend_name == 'pytorch':
+    def input_transform(t):
+        return torch.cat(
+            [
+                torch.sin(t),
+            ],
+            dim=1,
+        )
+
+    def output_transform(t, y):
+        y1 = y[:, 0:1]
+        y2 = y[:, 1:2]
+        return torch.cat([y1 * torch.tanh(t) + 100 / ub, y2 * torch.tanh(t) + 15 / ub], dim=1)
+elif backend_name == 'paddle':
+    def input_transform(t):
+        return paddle.concat(
+            (
+                paddle.sin(paddle.to_tensor(t)),
+            ),
+            axis=1,
+        )
+
+    def output_transform(t, y):
+        y1 = y[:, 0:1]
+        y2 = y[:, 1:2]
+        return paddle.concat([y1 * paddle.tanh(t) + 100 / ub, y2 * paddle.tanh(t) + 15 / ub], axis=1)
 
 # hard constraints: x(0) = 100, y(0) = 15
 # Backend tensorflow.compat.v1 or tensorflow
@@ -87,15 +130,9 @@ def input_transform(t):
 #     y2 = y[:, 1:2]
 #     return tf.concat([y1 * tf.tanh(t) + 100 / ub, y2 * tf.tanh(t) + 15 / ub], axis=1)
 # Backend pytorch
-# def output_transform(t, y):
-#     y1 = y[:, 0:1]
-#     y2 = y[:, 1:2]
-#     return torch.cat([y1 * torch.tanh(t) + 100 / ub, y2 * torch.tanh(t) + 15 / ub], dim=1)
+
 # Backend paddle
-def output_transform(t, y):
-    y1 = y[:, 0:1]
-    y2 = y[:, 1:2]
-    return paddle.concat([y1 * paddle.tanh(t) + 100 / ub, y2 * paddle.tanh(t) + 15 / ub], axis=1)
+
 
 net.apply_feature_transform(input_transform)
 net.apply_output_transform(output_transform)
@@ -103,15 +140,15 @@ model = dde.Model(data, net)
 
 model.compile("adam", lr=0.001)
 losshistory, train_state = model.train(iterations=50000)
-model.compile("L-BFGS")
-losshistory, train_state = model.train()
-dde.saveplot(losshistory, train_state, issave=True, isplot=True)
+# model.compile("L-BFGS")
+# losshistory, train_state = model.train()
+# dde.saveplot(losshistory, train_state, issave=True, isplot=True)
 
 plt.xlabel("t")
 plt.ylabel("population")
 
-t = np.linspace(0, 1, 100)
-x_true, y_true = gen_truedata()
+# t = np.linspace(0, 1, 100)
+x_true, y_true = gen_truedata(t)
 plt.plot(t, x_true, color="black", label="x_true")
 plt.plot(t, y_true, color="blue", label="y_true")
 
