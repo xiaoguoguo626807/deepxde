@@ -350,6 +350,10 @@ class VariableValue(Callback):
             self.epochs_since_last = 0
             if (backend_name in ["paddle"]) and paddle.in_dynamic_mode():
                 self.on_train_begin()
+            elif (backend_name in ["tensorflow.compat.v1"]):
+                self.on_train_begin()
+            elif (backend_name in ["pytorch"]):
+                self.on_train_begin()
             else:
                 self.value = self.model.extra_fetch_var
                 print(

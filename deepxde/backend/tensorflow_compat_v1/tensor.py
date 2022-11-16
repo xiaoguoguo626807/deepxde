@@ -210,3 +210,9 @@ def cos(tensor):
 
 def roll(tensor, shift, axis=None):
     return tf.roll(tensor, shift, axis)
+
+
+def gradients(x, y):
+    """求x对y的一阶微分矩阵
+    """
+    return tf.gradients(x, y)

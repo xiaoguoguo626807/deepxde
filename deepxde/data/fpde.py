@@ -146,7 +146,7 @@ class FPDE(PDE):
             self.frac_train = Fractional(self.alpha, self.geom, self.disc, x_f)
             X = self.frac_train.get_x()
 
-        self.train_x = np.vstack((x_bc, X))
+        self.train_x = np.vstack((x_bc, X)).astype("float32")
         self.train_y = self.soln(self.train_x) if self.soln else None
         return self.train_x, self.train_y
 

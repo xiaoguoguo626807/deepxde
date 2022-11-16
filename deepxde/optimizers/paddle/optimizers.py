@@ -3,6 +3,7 @@ __all__ = ["get", "is_external_optimizer"]
 import paddle
 from .lbfgs_optimizer import lbfgs_minimize
 
+
 class InverseTimeDecay(paddle.optimizer.lr.InverseTimeDecay):
     def __init__(self, learning_rate, gamma, decay_steps=1, last_epoch=-1, verbose=False):
         self.decay_steps = decay_steps
@@ -55,5 +56,5 @@ def get(params, optimizer, learning_rate=None, decay=None):
 
     if optimizer == "adam":
         return paddle.optimizer.Adam(learning_rate=learning_rate, parameters=params)
-    
+
     raise NotImplementedError(f"{optimizer} to be implemented for backend Paddle.")
