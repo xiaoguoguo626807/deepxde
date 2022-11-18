@@ -14,7 +14,10 @@ def istensorlist(values):
 def convert_to_array(value):
     """Convert a list to numpy array or tensorflow tensor."""
     if istensorlist(value):
-        return as_tensor(value, dtype=config.real(bkd.lib))
+        if bkd.backend_name == 'paddle':
+            return paddle.concat(value, axis=0)
+        else:
+            return as_tensor(value, dtype=config.real(bkd.lib))
     value = np.array(value)
     if value.dtype != config.real(np):
         return value.astype(config.real(np))

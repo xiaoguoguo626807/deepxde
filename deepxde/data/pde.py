@@ -136,7 +136,7 @@ class PDE(Data):
                         raise ValueError("Auxiliary variable function not defined.")
                     f = self.pde(inputs, outputs_pde, unknowns=aux[1])
                 else:
-                    f = self.pde(inputs, outputs_pde, model.net.auxiliary_vars)
+                    f = self.pde(inputs, outputs_pde, bkd.as_tensor(model.net.auxiliary_vars))
             if not isinstance(f, (list, tuple)):
                 f = [f]
 
