@@ -7,10 +7,10 @@ LBFGS_options = {}
 
 
 def set_LBFGS_options(
-    maxcor=100,
+    maxcor=10,#100
     ftol=0,
     gtol=1e-8,
-    maxiter=15000,
+    maxiter=150,#15000
     maxfun=None,
     maxls=50,
 ):

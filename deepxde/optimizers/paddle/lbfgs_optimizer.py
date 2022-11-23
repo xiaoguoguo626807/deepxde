@@ -54,7 +54,7 @@ class LossAndFlatGradient:
         # Set the weights
         self.set_flat_weights(weights_1d)
         loss = self.build_loss()
-        print ("loss: ", float(loss.numpy()))
+        # print ("loss: ", float(loss.numpy()))
         return loss
 
     def dynamic_partition(self, weights_1d, partitions, param_num):

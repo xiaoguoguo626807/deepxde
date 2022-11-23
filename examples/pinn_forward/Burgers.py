@@ -39,8 +39,8 @@ ic = dde.icbc.IC(
 data = dde.data.TimePDE(
     geomtime, pde, [bc, ic], num_domain=2540, num_boundary=80, num_initial=160
 )
-net = dde.nn.FNN([2] + [20] * 3 + [1], "tanh", "Glorot normal",task_name)
-
+#net = dde.nn.FNN([2] + [20] * 3 + [1], "tanh", "Glorot normal",task_name)
+net = dde.nn.FNN([2] + [3] + [1], "tanh", "Glorot normal",task_name)
 from deepxde.backend import backend_name
 # if backend_name == 'pytorch':
 #     new_save = False

@@ -15,7 +15,7 @@ from . import utils
 from .backend import backend_name, tf, torch, jax, paddle
 from .callbacks import CallbackList
 
-LOSS_FLAG = True
+LOSS_FLAG = False
 class Model:
     """A ``Model`` trains a ``NN`` on a ``Data``.
 
