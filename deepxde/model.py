@@ -1133,7 +1133,7 @@ class Model:
             self.train_state.epoch += n_iter - prev_n_iter
             self.train_state.step += n_iter - prev_n_iter
             prev_n_iter = n_iter
-            print("n_iter: ", n_iter)
+            print("lbfgs one step n_iter: ", n_iter)
             self._test()
 
             self.callbacks.on_batch_end()
@@ -1160,7 +1160,7 @@ class Model:
             
             self.train_state.epoch += count
             self.train_state.step += count
-            print("n_iter: ", n_iter)
+            print("lbfgs one step n_iter: ", n_iter)
             self._test()
  
             # print("result[0]", results[0])
@@ -1170,6 +1170,7 @@ class Model:
             # print("result[4]", results[4])
 
             if results[0] :
+                print("is_coverge = True")
                 break
 
     def _test(self):
