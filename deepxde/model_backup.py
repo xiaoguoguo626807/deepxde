@@ -15,7 +15,7 @@ from . import utils
 from .backend import backend_name, tf, torch, jax, paddle
 from .callbacks import CallbackList
 
-
+LOSS_FLAG = False
 class Model:
     """A ``Model`` trains a ``NN`` on a ``Data``.
 
@@ -36,6 +36,7 @@ class Model:
         self.train_state = TrainState()
         self.losshistory = LossHistory()
         self.stop_training = False
+        self.lr_scheduler = None
 
         # Backend-dependent attributes
         self.opt = None
@@ -47,6 +48,8 @@ class Model:
         if backend_name == "tensorflow.compat.v1":
             self.sess = None
             self.saver = None
+            self.extra_fetch_var = []  # for later access
+            self.total_loss = None
         elif backend_name == "pytorch":
             self.lr_scheduler = None
         elif backend_name == "jax":
@@ -193,14 +196,14 @@ class Model:
 
         losses_train = losses(self.data.losses_train)
         losses_test = losses(self.data.losses_test)
-        total_loss = tf.math.reduce_sum(losses_train)
+        self.total_loss = tf.math.reduce_sum(losses_train)
 
         # Tensors
         self.outputs = self.net.outputs
         self.outputs_losses_train = [self.net.outputs, losses_train]
         self.outputs_losses_test = [self.net.outputs, losses_test]
         self.train_step = optimizers.get(
-            total_loss, self.opt_name, learning_rate=lr, decay=decay
+            self.total_loss, self.opt_name, learning_rate=lr, decay=decay
         )
 
     def _compile_tensorflow(self, lr, loss_fn, decay, loss_weights):
@@ -242,7 +245,7 @@ class Model:
 
         opt = optimizers.get(self.opt_name, learning_rate=lr, decay=decay)
 
-        @tf.function(jit_compile=config.xla_jit)
+        #@tf.function(jit_compile=config.xla_jit)
         def train_step(inputs, targets, auxiliary_vars):
             # inputs and targets are np.ndarray and automatically converted to Tensor.
             with tf.GradientTape() as tape:
@@ -251,6 +254,10 @@ class Model:
             trainable_variables = (
                 self.net.trainable_variables + self.external_trainable_variables
             )
+
+            if LOSS_FLAG:
+                print(f"{total_loss:.10f}")
+
             grads = tape.gradient(total_loss, trainable_variables)
             opt.apply_gradients(zip(grads, trainable_variables))
 
@@ -316,9 +323,9 @@ class Model:
                 losses = [losses]
             losses = torch.stack(losses)
 
-            file_name2 = 'pytorch_lossed'
-            with open(file_name2,'ab') as f2:
-                np.savetxt(f2,utils.to_numpy(losses),delimiter=",")
+            # file_name2 = 'pytorch_losses'
+            # with open(file_name2,'ab') as f2:
+            #     np.savetxt(f2,utils.to_numpy(losses),delimiter=",")
             # Weighted losses
             if loss_weights is not None:
                 losses *= torch.as_tensor(loss_weights)
@@ -361,6 +368,10 @@ class Model:
             def closure():
                 losses = outputs_losses_train(inputs, targets)[1]
                 total_loss = torch.sum(losses)
+
+                if LOSS_FLAG:
+                    print(f"{total_loss.item():.10f}")
+
                 self.opt.zero_grad()
                 total_loss.backward()
                 return total_loss
@@ -442,7 +453,8 @@ class Model:
             with paddle.no_grad():
                 return self.net(paddle.to_tensor(inputs))
 
-        def outputs_losses(training, inputs, targets, losses_fn):
+        def outputs_losses(training, inputs, targets, auxiliary_vars, losses_fn):
+            self.net.auxiliary_vars = auxiliary_vars
             if training:
                 self.net.train()
             else:
@@ -467,35 +479,55 @@ class Model:
 
             return outputs_, losses
 
-        def outputs_losses_train(inputs, targets):
-            return outputs_losses(True, inputs, targets, self.data.losses_train)
+        def outputs_losses_train(inputs, targets, auxiliary_vars):
+            return outputs_losses(True, inputs, targets, auxiliary_vars, self.data.losses_train)
 
-        def outputs_losses_test(inputs, targets):
-            return outputs_losses(False, inputs, targets, self.data.losses_test)
+        def outputs_losses_test(inputs, targets, auxiliary_vars):
+            return outputs_losses(False, inputs, targets, auxiliary_vars, self.data.losses_test)
 
         trainable_variables = (
             list(self.net.parameters()) + self.external_trainable_variables
         )
-        self.opt = optimizers.get(
-            trainable_variables, self.opt_name, learning_rate=lr, decay=decay
-        )
 
-        def train_step(inputs, targets):
-            losses = outputs_losses_train(inputs, targets)[1]
+        self.opt = optimizers.get(
+                trainable_variables, self.opt_name, learning_rate=lr, decay=decay)
+
+
+        def train_step(inputs, targets, auxiliary_vars):
+            losses = outputs_losses_train(inputs, targets, auxiliary_vars)[1]
             total_loss = paddle.sum(losses)
             total_loss.backward()
+
+            if LOSS_FLAG:
+                print(f"{total_loss.item():.10f}")
+
             self.opt.step()
             self.opt.clear_grad()
+
+        def train_step_lbfgs(inputs, targets, auxiliary_vars, previous_optimizer_results=None):
+            def build_loss():
+                losses = outputs_losses_train(inputs, targets, auxiliary_vars)[1]
+                return paddle.sum(losses)
+
+            trainable_variables = (
+                list(self.net.parameters()) + self.external_trainable_variables
+            )
+
+            return self.opt(trainable_variables, build_loss, previous_optimizer_results)
 
         # Callables
         self.outputs = outputs
         self.outputs_losses_train = outputs_losses_train
         self.outputs_losses_test = outputs_losses_test
-        self.train_step = train_step
+        self.train_step = (
+            train_step
+            if not optimizers.is_external_optimizer(self.opt_name)
+            else train_step_lbfgs
+        )
 
     def _compile_paddle_static(self, lr, loss_fn, decay, loss_weights):
         """paddle_static_program init"""
-        place = paddle.CUDAPlace(1)
+        place = paddle.CUDAPlace(0)
         if self.exe == None:
             self.exe = paddle.static.Executor(place)
 
@@ -556,9 +588,9 @@ class Model:
                     self.train_losses *= loss_weights_buffer
                 grad.clear()
 
-                self.total_loss = paddle.sum(self.train_losses)
+                self.train_losses = paddle.sum(self.train_losses)
 
-                self.opt.minimize(self.total_loss)
+                self.opt.minimize(self.train_losses)
 
             # import os
             # f = open('oldAD_main_program.log','w')
@@ -579,7 +611,7 @@ class Model:
             # s.close()
 
             # build the train_program
-            with paddle.fluid.unique_name.guard():
+            with paddle.fluid.unique_name.guard("rename"):
                 with paddle.static.program_guard(self.train_program, self.start_up_program):
                     inputs_buffer = paddle.static.data(name='train_inputs',
                                         shape=train_inputs.shape,
@@ -593,7 +625,10 @@ class Model:
                                         dtype=train_targets.dtype)
                         targets_buffer.stop_gradient = False
                         print("train_targets_buffer shape :", targets_buffer.shape)
-
+                    else:
+                        targets_buffer = paddle.static.data(name='train_targets',
+                                                            shape=train_inputs.shape,
+                                                            dtype=train_inputs.dtype)
                     self.train_outputs = self.net(inputs_buffer)
                     print("train_outputs shape :", self.train_outputs.shape)
 
@@ -604,26 +639,32 @@ class Model:
                     losses = paddle.concat(losses, axis=0)
                     # Weighted losses
                     if loss_weights is not None:
+                        print("loss_weights:",loss_weights)
+                        loss_weights_shape = [len(loss_weights)]
                         loss_weights_buffer = paddle.static.data(name='loss_weights',
-                                        shape=loss_weights.shape,
-                                        dtype=loss_weights.dtype)
+                                        shape=loss_weights_shape,
+                                        dtype=type(loss_weights[0]))
                         loss_weights_buffer.stop_gradient = False
                         losses *= loss_weights_buffer
 
                     grad.clear()
                     self.train_losses = paddle.sum(losses)
 
+                    f = open('prim_train_program_1.log','w')
+                    print (self.train_program,file=f)
+                    f.close()
+
                     self.opt.minimize(self.train_losses, startup_program=self.start_up_program)
                     paddle.incubate.autograd.prim2orig()
 
                     print("train_program success")
 
-            # f = open('prim_train_program.log','w')
-            # print (self.train_program,file=f)
-            # f.close()
+            f = open('prim_train_program.log','w')
+            print (self.train_program,file=f)
+            f.close()
 
             # build the test_program
-            with paddle.fluid.unique_name.guard():
+            with paddle.fluid.unique_name.guard("rename"):
                 with paddle.static.program_guard(self.test_program, self.start_up_program):
                     inputs_buffer_ = paddle.static.data(name='test_inputs',
                                         shape=test_inputs.shape,
@@ -637,7 +678,10 @@ class Model:
                                         dtype=test_targets.dtype)
                         targets_buffer_.stop_gradient = False
                         print("test_targets_buffer shape :", targets_buffer_.shape)
-
+                    else:
+                        targets_buffer_ = paddle.static.data(name='test_targets',
+                                                             shape=test_inputs.shape,
+                                                             dtype=test_inputs.dtype)
                     self.test_outputs = self.net(inputs_buffer_)
                     print("outputs shape :", self.test_outputs.shape)
 
@@ -648,9 +692,11 @@ class Model:
                     losses = paddle.concat(losses, axis=0)
                     # Weighted losses
                     if loss_weights is not None:
+                        print("loss_weights:",loss_weights)
+                        loss_weights_shape = [len(loss_weights)]
                         loss_weights_buffer_ = paddle.static.data(name='loss_weights',
-                                        shape=loss_weights.shape,
-                                        dtype=loss_weights.dtype)
+                                        shape=loss_weights_shape,
+                                        dtype=type(loss_weights[0]))
                         loss_weights_buffer_.stop_gradient = False
                         losses *= loss_weights_buffer_
 
@@ -661,15 +707,16 @@ class Model:
 
                     print("test_program success")
 
-            # s = open('prim_test_program.log','w')
-            # print (self.test_program,file=s)
-            # s.close()
+            s = open('prim_test_program.log','w')
+            print (self.test_program,file=s)
+            s.close()
 
             self.exe.run(self.start_up_program)
             print("prim build end")
 
         def outputs(training, inputs):
-
+            self.feeds = dict()
+            self.extra_fetch_var = []
             if training :
                 self.feeds['train_inputs'] = inputs
                 if loss_weights is not None:
@@ -677,7 +724,8 @@ class Model:
 
                 self.fetches = [self.train_losses.name]
                 self.fetches.append(self.train_outputs.name)
-                self.exe.run(self.train_program, feed=self.feeds,
+                self.fetches.append(self.var_list)
+                static_out = self.exe.run(self.train_program, feed=self.feeds,
                             fetch_list=self.fetches)
             else:
                 if paddle.incubate.autograd.prim_enabled():
@@ -686,8 +734,9 @@ class Model:
                         self.feeds['loss_weights'] = loss_weights
 
                     self.fetches = [self.test_losses.name]
+                    self.fetches.append(self.var_list)
                     self.fetches.append(self.test_outputs.name)
-                    self.exe.run(self.test_program, feed=self.feeds,
+                    static_out = self.exe.run(self.test_program, feed=self.feeds,
                             fetch_list=self.fetches)
                 else:
                     self.feeds['train_inputs'] = inputs
@@ -695,14 +744,19 @@ class Model:
                         self.feeds['loss_weights'] = loss_weights
 
                     self.fetches = [self.train_losses.name]
+                    self.fetches.append(self.var_list)
                     self.fetches.append(self.train_outputs.name)
-                    self.exe.run(self.train_program, feed=self.feeds,
+                    static_out = self.exe.run(self.train_program, feed=self.feeds,
                             fetch_list=self.fetches)
 
 
+            for i in range(len(self.var_list)):
+                self.extra_fetch_var.append(static_out[i+1])
+            return static_out[-1]
+
 
         def outputs_losses(training, inputs, targets, losses_fn):
-
+            self.feeds = dict()
             self.extra_fetch_var = []
             if training:
                 self.feeds['train_inputs'] = inputs
@@ -711,7 +765,7 @@ class Model:
                 if targets is not None:
                     self.feeds['train_targets'] = targets
 
-                self.fetches = [self.total_loss.name]
+                self.fetches = [self.train_losses.name]
                 self.fetches.append(self.train_outputs.name)
                 self.fetches.append(self.var_list)
                 static_out = self.exe.run(self.train_program, feed=self.feeds,
@@ -726,6 +780,7 @@ class Model:
 
                     self.fetches = [self.test_losses.name]
                     self.fetches.append(self.test_outputs.name)
+                    self.fetches.append(self.var_list)
                     static_out = self.exe.run(self.test_program, feed=self.feeds,
                             fetch_list=self.fetches)
                 else:
@@ -735,17 +790,19 @@ class Model:
                     if targets is not None:
                         self.feeds['train_targets'] = targets
 
-                    self.fetches = [self.total_loss.name]
+                    self.fetches = [self.train_losses.name]
                     self.fetches.append(self.train_outputs.name)
                     self.fetches.append(self.var_list)
                     static_out = self.exe.run(self.train_program, feed=self.feeds,
                             fetch_list=self.fetches)
+
             # Data losses
             losses = static_out[0]
             if losses.size == 1:
                 total_loss = losses.item()
-                if isinstance(total_loss, float):
-                    print(f"{total_loss:.10f}")
+                if LOSS_FLAG:
+                    if isinstance(total_loss, float):
+                        print(f"{total_loss:.10f}")
             outputs_ = static_out[1]
             for i in range(len(self.var_list)):
                 self.extra_fetch_var.append(static_out[i+2])
@@ -759,13 +816,13 @@ class Model:
 
         def train_step(inputs, targets):
             _, loss = outputs_losses_train(inputs, targets)
-            if paddle.incubate.autograd.prim_enabled():
-                filename = 'newAD_static_loss.log'
-            else:
-                filename = 'oldAD_static_loss.log'
-            f = open(filename,'ab')
-            np.savetxt(f, loss, delimiter=',')
-            f.close()
+            # if paddle.incubate.autograd.prim_enabled():
+            #     filename = 'newAD_static_loss.log'
+            # else:
+            #     filename = 'oldAD_static_loss.log'
+            # f = open(filename,'ab')
+            # np.savetxt(f, loss, delimiter=',')
+            # f.close()
 
         # Callables
         self.outputs = outputs
@@ -810,7 +867,7 @@ class Model:
             # TODO: auxiliary_vars
             outs = outputs_losses(self.params, inputs, targets)
         elif backend_name == "paddle":
-            outs = outputs_losses(inputs, targets)
+            outs = outputs_losses(inputs, targets, auxiliary_vars)
             if not paddle.in_dynamic_mode():
                 return outs[0], outs[1]
         return utils.to_numpy(outs[0]), utils.to_numpy(outs[1])
@@ -818,12 +875,60 @@ class Model:
     def _train_step(self, inputs, targets, auxiliary_vars):
         if backend_name == "tensorflow.compat.v1":
             feed_dict = self.net.feed_dict(True, inputs, targets, auxiliary_vars)
-            self.sess.run(self.train_step, feed_dict=feed_dict)
+            # names = tf.global_variables()
+            # print(*names, sep='\n')
+            # fetch_params_list_Lorenz_inverse_forced = [
+            #     'dense/kernel:0',
+            #     'dense/bias:0',
+            #     'dense_1/kernel:0',
+            #     'dense_1/bias:0',
+            #     'dense_2/kernel:0',
+            #     'dense_2/bias:0',
+            #     'dense_3/kernel:0',
+            #     'dense_3/bias:0',
+            # ]
+            # maps = {
+            #     "dense/kernel:0":   "linears.0.weight",
+            #     "dense/bias:0":   "linears.0.bias",
+            #     "dense_1/kernel:0": "linears.1.weight",
+            #     "dense_1/bias:0": "linears.1.bias",
+            #     "dense_2/kernel:0": "linears.2.weight",
+            #     "dense_2/bias:0": "linears.2.bias",
+            #     "dense_3/kernel:0": "linears.3.weight",
+            #     "dense_3/bias:0": "linears.3.bias",
+            # }
+            # # # 获取参数并保存
+            # tf_params = self.sess.run([*fetch_params_list_Lorenz_inverse_forced], feed_dict=feed_dict)
+            # for i, name in enumerate(fetch_params_list_Lorenz_inverse_forced):
+            #     out_name = maps.get(name, name)
+            #     path = f"./{out_name}.npy"
+            #     np.save(path, tf_params[i])
+            #     print(f"param file saved at {path}")
+            # exit(0)
+            _, total_loss = self.sess.run([self.train_step, self.total_loss,], feed_dict=feed_dict)
+            if LOSS_FLAG:
+                print(f"{total_loss.item():.10f}")
         elif backend_name == "tensorflow":
+            # file_name1 = 'tensorflow_net_input.log'
+            # with open(file_name1,'ab') as f1:
+            #     np.savetxt(f1,inputs,delimiter=",")
             self.train_step(inputs, targets, auxiliary_vars)
-        elif backend_name in ["pytorch", "paddle"]:
-            # TODO: auxiliary_vars
+        elif backend_name == "pytorch":
+            # TODO: auxiliary_varsee
             self.train_step(inputs, targets)
+        elif backend_name == "paddle":
+            # file_name1 = 'paddle_net_input.log'
+            # with open(file_name1,'ab') as f1:
+            #     np.savetxt(f1,inputs,delimiter=",")
+            self.train_step(inputs, targets, auxiliary_vars)
+            if hasattr(self.opt, '_learning_rate') and \
+                    isinstance(self.opt._learning_rate, paddle.optimizer.lr.LRScheduler):
+                # 动态图/静态图统一在此处（self.train_step外部）更新学习率
+                self.opt._learning_rate.step()
+
+            # 打印学习率
+            # print(f"{self.opt._learning_rate.get_lr():.10f}")
+
         elif backend_name == "jax":
             # TODO: auxiliary_vars
             self.params, self.opt_state = self.train_step(
@@ -911,16 +1016,19 @@ class Model:
                 self._train_tensorflow_tfp()
             elif backend_name == "pytorch":
                 self._train_pytorch_lbfgs()
+            elif backend_name == "paddle":
+                self._train_paddle_lbfgs()
         else:
             if iterations is None:
                 raise ValueError("No iterations for {}.".format(self.opt_name))
+
             self._train_sgd(iterations, display_every)
         self.callbacks.on_train_end()
 
         print("")
-        # display.training_display.summary(self.train_state)
-        # if model_save_path is not None:
-            # self.save(model_save_path, verbose=1)
+        display.training_display.summary(self.train_state)
+        if model_save_path is not None:
+            self.save(model_save_path, verbose=1)
         return self.losshistory, self.train_state
 
     def _train_sgd(self, iterations, display_every):
@@ -947,6 +1055,8 @@ class Model:
 
             if self.stop_training:
                 break
+        print("train_step_end")
+        self._test()
 
     def _train_tensorflow_compat_v1_scipy(self, display_every):
         def loss_callback(loss_train):
@@ -1001,6 +1111,7 @@ class Model:
 
     def _train_pytorch_lbfgs(self):
         prev_n_iter = 0
+        
         while prev_n_iter < optimizers.LBFGS_options["maxiter"]:
             self.callbacks.on_epoch_begin()
             self.callbacks.on_batch_begin()
@@ -1014,7 +1125,7 @@ class Model:
                 self.train_state.train_aux_vars,
             )
 
-            n_iter = self.opt.state_dict()["state"][0]["n_iter"]
+            n_iter = self.opt.state_dict()["state"][0]["func_evals"]
             if prev_n_iter == n_iter:
                 # Converged
                 break
@@ -1022,12 +1133,44 @@ class Model:
             self.train_state.epoch += n_iter - prev_n_iter
             self.train_state.step += n_iter - prev_n_iter
             prev_n_iter = n_iter
+            print("lbfgs one step n_iter: ", n_iter)
             self._test()
 
             self.callbacks.on_batch_end()
             self.callbacks.on_epoch_end()
 
             if self.stop_training:
+                break
+
+    def _train_paddle_lbfgs(self):
+        n_iter = 0
+        print("optimizers.LBFGS_options[maxiter] :", optimizers.LBFGS_options["maxiter"])
+        while n_iter < optimizers.LBFGS_options["maxiter"]:
+            self.train_state.set_data_train(
+                *self.data.train_next_batch(self.batch_size)
+            )
+            results = self.train_step(
+                self.train_state.X_train,
+                self.train_state.y_train,
+                self.train_state.train_aux_vars,
+            )
+
+            count =int(results[1].numpy()) 
+            n_iter += count
+            
+            self.train_state.epoch += count
+            self.train_state.step += count
+            print("lbfgs one step n_iter: ", n_iter)
+            self._test()
+ 
+            # print("result[0]", results[0])
+            # print("result[1]", results[1])
+            # print("result[2]", results[2])
+            # print("result[3]", results[3])
+            # print("result[4]", results[4])
+
+            if results[0] :
+                print("is_coverge = True")
                 break
 
     def _test(self):
@@ -1046,6 +1189,7 @@ class Model:
             self.train_state.y_test,
             self.train_state.test_aux_vars,
         )
+
         if isinstance(self.train_state.y_test, (list, tuple)):
             self.train_state.metrics_test = [
                 m(self.train_state.y_test[i], self.train_state.y_pred_test[i])
@@ -1071,7 +1215,7 @@ class Model:
             or np.isnan(self.train_state.loss_test).any()
         ):
             self.stop_training = True
-        # display.training_display(self.train_state)
+        display.training_display(self.train_state)
 
     def predict(self, x, operator=None, callbacks=None):
         """Generates predictions for the input samples. If `operator` is ``None``,
