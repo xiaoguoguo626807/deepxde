@@ -203,6 +203,10 @@ def exp(x):
     """Computes exp of x element-wise."""
 
 
+def pow(x, y):
+    """Computes x ^ y."""
+
+
 def square(x):
     """Returns the square of the elements of input."""
 
