@@ -211,4 +211,4 @@ def roll(tensor, shift, axis=None):
 
 
 def gradients(x, y):
-    raise torch.autograd.grad(x, y, create_graph=True)
+    return torch.autograd.grad(x, y, create_graph=True)
