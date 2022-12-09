@@ -1117,7 +1117,7 @@ class Model:
                 self.train_state.train_aux_vars,
             )
 
-            n_iter = self.opt.state_dict()["state"]["func_evals"]
+            n_iter = self.opt.state_dict()["state"]["n_iter"]
             if prev_n_iter == n_iter:
                 # Converged
                 break
