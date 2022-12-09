@@ -460,6 +460,7 @@ class Model:
             # Data losses
             if targets is not None:
                 targets = paddle.to_tensor(targets)
+
             losses = losses_fn(targets, outputs_, loss_fn, inputs, self)
             if not isinstance(losses, list):
                 losses = [losses]
@@ -500,16 +501,18 @@ class Model:
             self.opt.clear_grad()
 
         def train_step_lbfgs(inputs, targets, auxiliary_vars, previous_optimizer_results=None):
-            def build_loss():
+            def closure():
                 losses = outputs_losses_train(inputs, targets, auxiliary_vars)[1]
-                return paddle.sum(losses)
+                total_loss = paddle.sum(losses)
 
-            trainable_variables = (
-                list(self.net.parameters()) + self.external_trainable_variables
-            )
+                if LOSS_FLAG:
+                    print(f"{total_loss.item():.10f}")
 
-            print("trian_step_lbfgs: ")
-            return self.opt(trainable_variables, build_loss, previous_optimizer_results)
+                self.opt.clear_grad()
+                total_loss.backward()
+                return total_loss
+            
+            self.opt.step(closure)
 
         # Callables
         self.outputs = outputs
@@ -1099,22 +1102,35 @@ class Model:
                 break
 
     def _train_paddle_lbfgs(self):
-        n_iter = 0
-        while n_iter < optimizers.LBFGS_options["maxiter"]:
+        prev_n_iter = 0
+        
+        while prev_n_iter < optimizers.LBFGS_options["maxiter"]:
+            self.callbacks.on_epoch_begin()
+            self.callbacks.on_batch_begin()
+
             self.train_state.set_data_train(
                 *self.data.train_next_batch(self.batch_size)
             )
-            results = self.train_step(
+            self._train_step(
                 self.train_state.X_train,
                 self.train_state.y_train,
                 self.train_state.train_aux_vars,
             )
-            n_iter += results[1].numpy()
-            self.train_state.epoch += results[1].numpy()
-            self.train_state.step += results[1].numpy()
+
+            n_iter = self.opt.state_dict()["state"]["func_evals"]
+            if prev_n_iter == n_iter:
+                # Converged
+                break
+
+            self.train_state.epoch += n_iter - prev_n_iter
+            self.train_state.step += n_iter - prev_n_iter
+            prev_n_iter = n_iter
             self._test()
 
-            if results[0] :
+            self.callbacks.on_batch_end()
+            self.callbacks.on_epoch_end()
+
+            if self.stop_training:
                 break
 
     def _test(self):
