@@ -1,7 +1,8 @@
 __all__ = ["get", "is_external_optimizer"]
 
 import paddle
-from .lbfgs_torchoptimizer import LBFGS
+#from .lbfgs_torchoptimizer import LBFGS
+from paddle.incubate.optimizer.functional import LBFGS
 from ..config import LBFGS_options
 
 class InverseTimeDecay(paddle.optimizer.lr.InverseTimeDecay):
@@ -47,7 +48,6 @@ def get(params, optimizer, learning_rate=None, decay=None, weight_decay=0):
         
         paddle_max_eval = LBFGS_options["iter_per_step"] * 1.25 # max_iter * max_line_search_iter
         optim = LBFGS(
-            params,
             lr=1,
             max_iter=LBFGS_options["iter_per_step"],
             # max_eval=LBFGS_options["fun_per_step"],
@@ -56,6 +56,7 @@ def get(params, optimizer, learning_rate=None, decay=None, weight_decay=0):
             tolerance_change=LBFGS_options["ftol"],
             history_size=LBFGS_options["maxcor"],
             line_search_fn='strong_wolfe',
+            parameters=params,
         )
         return optim
     else:

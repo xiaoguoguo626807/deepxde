@@ -14,7 +14,6 @@ from ..config import LBFGS_options
 
 class LossAndFlatGradient:
     """A helper class to create a function required by paddle.incubate.optimizer.functional.minimize_lbfgs
-
     Args:
         trainable_variables: Trainable variables.
         build_loss: A function to build the loss function expression.
@@ -40,8 +39,6 @@ class LossAndFlatGradient:
             self.partitions.append(count)
         # print("partition = ", self.partitions)
 
-
-
     def __call__(self, weights_1d):
         """A function that can be used by paddle.incubate.optimizer.functional.minimize_lbfgs.
 
@@ -64,10 +61,8 @@ class LossAndFlatGradient:
             weights_nd.append(tmp)
         return weights_nd
 
-
     def set_flat_weights(self, weights_1d):
         """Sets the weights with a 1D Paddle.Tensor.
-
         Args:
             weights_1d: a 1D Paddle.Tensor representing the trainable variables.
         """
@@ -76,18 +71,13 @@ class LossAndFlatGradient:
         for i, (shape, param) in enumerate(zip(self.shapes, weights)):
             paddle.assign(param.reshape(shape), self.trainable_variables[i])
      
-    
-
     def to_flat_weights(self, weights):
         """Returns a 1D Paddle.Tensor representing the `weights`.
-
         Args:
             weights: A list of Paddle.Tensor representing the weights.
-
         Returns:
             A 1D Paddle.Tensor representing the `weights`.
-        """
-        
+        """     
         return paddle.concat([paddle.flatten(w) for w in weights])
 
 
