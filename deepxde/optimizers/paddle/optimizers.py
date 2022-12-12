@@ -1,8 +1,7 @@
 __all__ = ["get", "is_external_optimizer"]
 
 import paddle
-#from .lbfgs_torchoptimizer import LBFGS
-from paddle.incubate.optimizer.functional import LBFGS
+#from paddle.incubate.optimizer.functional import LBFGS
 from ..config import LBFGS_options
 
 class InverseTimeDecay(paddle.optimizer.lr.InverseTimeDecay):
@@ -46,17 +45,18 @@ def get(params, optimizer, learning_rate=None, decay=None, weight_decay=0):
         if learning_rate is not None or decay is not None:
             print("Warning: learning rate is ignored for {}".format(optimizer))
         
-        optim = LBFGS(
-            lr=1,
-            max_iter=LBFGS_options["iter_per_step"],
-            max_eval=LBFGS_options["fun_per_step"],
-            tolerance_grad=LBFGS_options["gtol"],
-            tolerance_change=LBFGS_options["ftol"],
-            history_size=LBFGS_options["maxcor"],
-            line_search_fn='strong_wolfe',
-            parameters=params,
-        )
-        return optim
+        raise NotImplementedError(f"{optimizer} to be implemented for backend Paddle.")
+        # optim = LBFGS(
+        #     lr=1,
+        #     max_iter=LBFGS_options["iter_per_step"],
+        #     max_eval=LBFGS_options["fun_per_step"],
+        #     tolerance_grad=LBFGS_options["gtol"],
+        #     tolerance_change=LBFGS_options["ftol"],
+        #     history_size=LBFGS_options["maxcor"],
+        #     line_search_fn='strong_wolfe',
+        #     parameters=params,
+        # )
+        # return optim
     else:
         if learning_rate is None:
             raise ValueError("No learning rate for {}.".format(optimizer))
