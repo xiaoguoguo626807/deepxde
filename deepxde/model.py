@@ -448,6 +448,7 @@ class Model:
             with paddle.no_grad():
                 return self.net(paddle.to_tensor(inputs))
 
+        @paddle.jit.to_static(extra_param=self.net.parameters())
         def outputs_losses(training, inputs, targets, auxiliary_vars, losses_fn):
             self.net.auxiliary_vars = auxiliary_vars
             if training:
