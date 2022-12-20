@@ -1,7 +1,7 @@
 __all__ = ["get", "is_external_optimizer"]
 
 import paddle
-#from paddle.incubate.optimizer.functional import LBFGS
+#from paddle.incubate.optimizer import LBFGS
 from ..config import LBFGS_options
 
 class InverseTimeDecay(paddle.optimizer.lr.InverseTimeDecay):
