@@ -45,7 +45,6 @@ def get(params, optimizer, learning_rate=None, decay=None, weight_decay=0):
         if learning_rate is not None or decay is not None:
             print("Warning: learning rate is ignored for {}".format(optimizer))
         
-        raise NotImplementedError(f"{optimizer} to be implemented for backend Paddle.")
         optim = LBFGS(
             lr=1,
             max_iter=LBFGS_options["iter_per_step"],
