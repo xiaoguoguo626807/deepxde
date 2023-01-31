@@ -452,15 +452,16 @@ class Model:
                 self.net.eval()
             with paddle.no_grad():
                 return self.net(paddle.to_tensor(inputs))
+
         '''
         def outputs_losses(training, inputs, targets, auxiliary_vars, losses_fn):
             self.net.auxiliary_vars = auxiliary_vars
             if training:
-                self.net.train()
+                self_.net.train()
             else:
-                self.net.eval()
+                self_.net.eval()
             inputs = paddle.to_tensor(inputs, stop_gradient=False).astype("float32")
-            outputs_ = self.net(inputs)
+            outputs_ = self_.net(inputs)
 
             # Data losses
             if targets is not None:
@@ -481,11 +482,12 @@ class Model:
             return outputs_, losses
 
         def outputs_losses_train(inputs, targets, auxiliary_vars):
-            return outputs_losses(True, inputs, targets, auxiliary_vars, self.data.losses_train)
+            return outputs_losses(self, True, inputs, targets, auxiliary_vars, self.data.losses_train, loss_fn, loss_weights)
 
         def outputs_losses_test(inputs, targets, auxiliary_vars):
             return outputs_losses(False, inputs, targets, auxiliary_vars, self.data.losses_test)
         '''
+        
         @paddle.jit.to_static
         def outputs_losses(self_, training, inputs, targets, auxiliary_vars, losses_fn, loss_fn, loss_weights):
             self_.net.auxiliary_vars = auxiliary_vars
@@ -521,7 +523,6 @@ class Model:
         def outputs_losses_test(inputs, targets, auxiliary_vars):
             return outputs_losses(self, False, inputs, targets, auxiliary_vars, self.data.losses_test, loss_fn, loss_weights)
 
-
         trainable_variables = (
             list(self.net.parameters()) + self.external_trainable_variables
         )
@@ -533,6 +534,7 @@ class Model:
         def train_step(inputs, targets, auxiliary_vars):
             losses = outputs_losses_train(inputs, targets, auxiliary_vars)[1]
             total_loss = paddle.sum(losses)
+            # import pdb; pdb.set_trace()
             total_loss.backward()
 
             if LOSS_FLAG:
@@ -1007,7 +1009,7 @@ class Model:
                                     self.data.losses_train,
                                     self.data.losses_test)
         print("start_up_program end ...")
-        self._test()
+        #self._test()
         self.callbacks.on_train_begin()
         if optimizers.is_external_optimizer(self.opt_name):
             if backend_name == "tensorflow.compat.v1":
