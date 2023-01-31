@@ -453,15 +453,14 @@ class Model:
             with paddle.no_grad():
                 return self.net(paddle.to_tensor(inputs))
 
-        '''
         def outputs_losses(training, inputs, targets, auxiliary_vars, losses_fn):
             self.net.auxiliary_vars = auxiliary_vars
             if training:
-                self_.net.train()
+                self.net.train()
             else:
-                self_.net.eval()
+                self.net.eval()
             inputs = paddle.to_tensor(inputs, stop_gradient=False).astype("float32")
-            outputs_ = self_.net(inputs)
+            outputs_ = self.net(inputs)
 
             # Data losses
             if targets is not None:
@@ -482,12 +481,12 @@ class Model:
             return outputs_, losses
 
         def outputs_losses_train(inputs, targets, auxiliary_vars):
-            return outputs_losses(self, True, inputs, targets, auxiliary_vars, self.data.losses_train, loss_fn, loss_weights)
+            return outputs_losses(True, inputs, targets, auxiliary_vars, self.data.losses_train)
 
         def outputs_losses_test(inputs, targets, auxiliary_vars):
             return outputs_losses(False, inputs, targets, auxiliary_vars, self.data.losses_test)
         '''
-        
+
         @paddle.jit.to_static
         def outputs_losses(self_, training, inputs, targets, auxiliary_vars, losses_fn, loss_fn, loss_weights):
             self_.net.auxiliary_vars = auxiliary_vars
@@ -522,6 +521,7 @@ class Model:
 
         def outputs_losses_test(inputs, targets, auxiliary_vars):
             return outputs_losses(self, False, inputs, targets, auxiliary_vars, self.data.losses_test, loss_fn, loss_weights)
+        '''
 
         trainable_variables = (
             list(self.net.parameters()) + self.external_trainable_variables
