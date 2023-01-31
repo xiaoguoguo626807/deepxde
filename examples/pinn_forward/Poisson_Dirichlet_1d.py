@@ -3,6 +3,17 @@ import deepxde as dde
 import matplotlib.pyplot as plt
 import numpy as np
 from deepxde import backend as bkd
+from deepxde.config import set_random_seed
+from paddle.fluid import core
+
+set_random_seed(100)
+core.__set_bwd_prim_enabled(True)
+
+if (core._is_bwd_prim_enabled()):
+    print("prim is called")
+else:
+    print("fused is called")
+
 
 def pde(x, y):
     dy_xx = dde.grad.hessian(y, x)
@@ -29,7 +40,7 @@ net = dde.nn.FNN(layer_size, activation, initializer)
 model = dde.Model(data, net)
 model.compile("adam", lr=0.001, metrics=["l2 relative error"])
 
-losshistory, train_state = model.train(iterations=10000, display_every=100)
+losshistory, train_state = model.train(iterations=10000, display_every=10000)
 # Optional: Save the model during training.
 # checkpointer = dde.callbacks.ModelCheckpoint(
 #     "model/model", verbose=1, save_better_only=True

@@ -11,6 +11,17 @@ import matplotlib.pyplot as plt
 from scipy.io import loadmat
 import re
 
+from deepxde.config import set_random_seed
+from paddle.fluid import core
+
+set_random_seed(100)
+core.__set_bwd_prim_enabled(True)
+
+if (core._is_bwd_prim_enabled()):
+    print("prim is called")
+else:
+    print("fused is called")
+
 # true values
 C1true = 1.0
 C2true = 0.01
