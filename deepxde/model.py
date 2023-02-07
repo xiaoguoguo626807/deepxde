@@ -452,7 +452,7 @@ class Model:
                 self.net.eval()
             with paddle.no_grad():
                 return self.net(paddle.to_tensor(inputs))
-
+        '''
         def outputs_losses(training, inputs, targets, auxiliary_vars, losses_fn):
             self.net.auxiliary_vars = auxiliary_vars
             if training:
@@ -485,6 +485,42 @@ class Model:
 
         def outputs_losses_test(inputs, targets, auxiliary_vars):
             return outputs_losses(False, inputs, targets, auxiliary_vars, self.data.losses_test)
+        '''
+        @paddle.jit.to_static
+        def outputs_losses(self_, training, inputs, targets, auxiliary_vars, losses_fn, loss_fn, loss_weights):
+            self_.net.auxiliary_vars = auxiliary_vars
+            if training:
+                self_.net.train()
+            else:
+                self_.net.eval()
+            inputs = paddle.to_tensor(inputs, stop_gradient=False).astype("float32")
+            outputs_ = self_.net(inputs)
+
+            # Data losses
+            if targets is not None:
+                targets = paddle.to_tensor(targets)
+
+            # import pdb; pdb.set_trace()
+            losses = losses_fn(targets, outputs_, loss_fn, inputs, self_)
+            if not isinstance(losses, list):
+                losses = [losses]
+            # TODO: regularization
+            losses = paddle.concat(losses, axis=0)
+
+            # Weighted losses
+            if loss_weights is not None:
+                losses *= paddle.to_tensor(loss_weights)
+            # Clear cached Jacobians and Hessians.
+            grad.clear()
+
+            return outputs_, losses
+
+        def outputs_losses_train(inputs, targets, auxiliary_vars):
+            return outputs_losses(self, True, inputs, targets, auxiliary_vars, self.data.losses_train, loss_fn, loss_weights)
+
+        def outputs_losses_test(inputs, targets, auxiliary_vars):
+            return outputs_losses(self, False, inputs, targets, auxiliary_vars, self.data.losses_test, loss_fn, loss_weights)
+
 
         trainable_variables = (
             list(self.net.parameters()) + self.external_trainable_variables
