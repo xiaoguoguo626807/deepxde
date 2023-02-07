@@ -521,11 +521,7 @@ class Model:
 
         def outputs_losses_test(inputs, targets, auxiliary_vars):
             return outputs_losses(self, False, inputs, targets, auxiliary_vars, self.data.losses_test, loss_fn, loss_weights)
-<<<<<<< HEAD
 
-=======
-        '''
->>>>>>> 216c69c1e4bc14cc55e2fa6ff97bb5389e06faba
 
         trainable_variables = (
             list(self.net.parameters()) + self.external_trainable_variables
