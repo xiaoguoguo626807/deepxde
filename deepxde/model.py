@@ -486,6 +486,7 @@ class Model:
         def outputs_losses_test(inputs, targets, auxiliary_vars):
             return outputs_losses(False, inputs, targets, auxiliary_vars, self.data.losses_test)
         '''
+
         @paddle.jit.to_static
         def outputs_losses(self_, training, inputs, targets, auxiliary_vars, losses_fn, loss_fn, loss_weights):
             self_.net.auxiliary_vars = auxiliary_vars
@@ -520,7 +521,11 @@ class Model:
 
         def outputs_losses_test(inputs, targets, auxiliary_vars):
             return outputs_losses(self, False, inputs, targets, auxiliary_vars, self.data.losses_test, loss_fn, loss_weights)
+<<<<<<< HEAD
 
+=======
+        '''
+>>>>>>> 216c69c1e4bc14cc55e2fa6ff97bb5389e06faba
 
         trainable_variables = (
             list(self.net.parameters()) + self.external_trainable_variables
@@ -533,6 +538,7 @@ class Model:
         def train_step(inputs, targets, auxiliary_vars):
             losses = outputs_losses_train(inputs, targets, auxiliary_vars)[1]
             total_loss = paddle.sum(losses)
+            # import pdb; pdb.set_trace()
             total_loss.backward()
 
             if LOSS_FLAG:
@@ -1007,7 +1013,7 @@ class Model:
                                     self.data.losses_train,
                                     self.data.losses_test)
         print("start_up_program end ...")
-        self._test()
+        #self._test()
         self.callbacks.on_train_begin()
         if optimizers.is_external_optimizer(self.opt_name):
             if backend_name == "tensorflow.compat.v1":
