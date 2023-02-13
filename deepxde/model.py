@@ -452,6 +452,7 @@ class Model:
                 self.net.eval()
             with paddle.no_grad():
                 return self.net(paddle.to_tensor(inputs))
+        
         '''
         def outputs_losses(training, inputs, targets, auxiliary_vars, losses_fn):
             self.net.auxiliary_vars = auxiliary_vars
@@ -486,7 +487,7 @@ class Model:
         def outputs_losses_test(inputs, targets, auxiliary_vars):
             return outputs_losses(False, inputs, targets, auxiliary_vars, self.data.losses_test)
         '''
-
+         
         @paddle.jit.to_static
         def outputs_losses(self_, training, inputs, targets, auxiliary_vars, losses_fn, loss_fn, loss_weights):
             self_.net.auxiliary_vars = auxiliary_vars
@@ -517,11 +518,13 @@ class Model:
             return outputs_, losses
 
         def outputs_losses_train(inputs, targets, auxiliary_vars):
+            outputs_losses.train()
             return outputs_losses(self, True, inputs, targets, auxiliary_vars, self.data.losses_train, loss_fn, loss_weights)
 
         def outputs_losses_test(inputs, targets, auxiliary_vars):
+            outputs_losses.eval()
             return outputs_losses(self, False, inputs, targets, auxiliary_vars, self.data.losses_test, loss_fn, loss_weights)
-
+        
 
         trainable_variables = (
             list(self.net.parameters()) + self.external_trainable_variables
@@ -1009,7 +1012,7 @@ class Model:
                                     self.data.losses_train,
                                     self.data.losses_test)
         print("start_up_program end ...")
-        #self._test()
+        self._test()
         self.callbacks.on_train_begin()
         if optimizers.is_external_optimizer(self.opt_name):
             if backend_name == "tensorflow.compat.v1":
@@ -1181,7 +1184,7 @@ class Model:
             self.train_state.y_pred_train,
             self.train_state.loss_train,
         ) = self._outputs_losses(
-            True,
+            False,
             self.train_state.X_train,
             self.train_state.y_train,
             self.train_state.train_aux_vars,
