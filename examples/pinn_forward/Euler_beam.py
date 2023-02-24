@@ -1,8 +1,41 @@
 """Backend supported: tensorflow.compat.v1, tensorflow, pytorch"""
 import deepxde as dde
 import numpy as np
+
+from deepxde.config import set_random_seed
+from paddle.fluid import core
 import paddle
-paddle.enable_static()
+import argparse
+import os
+
+set_random_seed(100)
+core.__set_bwd_prim_enabled(True)
+paddle.jit.enable_to_static(False)
+
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    '--static', default=False, action="store_true")
+parser.add_argument(
+    '--jit', default=False, action="store_true")
+args = parser.parse_args()
+
+if args.static is True:
+    print("============= 静态图静态图静态图静态图静态图 =============")
+    paddle.enable_static()
+elif args.jit:
+    paddle.jit.enable_to_static(True)
+    print("============= 动转静动转静动转静动转静动转静 =============")
+else:
+    print("============= 动态图动态图动态图动态图动态图 =============")
+if (core._is_bwd_prim_enabled()):
+    print("============= 组合算子 组合算子 =============")
+
+
+
+task_name = os.path.basename(__file__).split(".")[0]
+# 创建任务日志文件夹
+log_dir = f"./{task_name}"
+os.makedirs(f"{log_dir}", exist_ok=True)
 
 def ddy(x, y):
     return dde.grad.hessian(y, x)
@@ -51,8 +84,23 @@ activation = "tanh"
 initializer = "Glorot uniform"
 net = dde.nn.FNN(layer_size, activation, initializer)
 
+# new_save = False
+# for name, param in net.named_parameters():
+#     if os.path.exists(f"{log_dir}/{name}.npy"):
+#         continue
+#     new_save = True
+#     np.save(f"{log_dir}/{name}.npy", param.numpy())
+#     print(f"successfully save param {name} at [{log_dir}/{name}.npy]")
+
+# if new_save:
+#     print("第一次保存模型完毕，自动退出，请再次运行")
+#     exit(0)
+# else:
+#     print("所有模型参数均存在，开始训练...............")
+
+
 model = dde.Model(data, net)
 model.compile("adam", lr=0.001, metrics=["l2 relative error"])
-losshistory, train_state = model.train(iterations=10000)
+losshistory, train_state = model.train(iterations=10)
 
 dde.saveplot(losshistory, train_state, issave=True, isplot=True)

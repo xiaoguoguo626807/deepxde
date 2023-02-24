@@ -452,7 +452,6 @@ class Model:
                 self.net.eval()
             with paddle.no_grad():
                 return self.net(paddle.to_tensor(inputs))
-        
         '''
         def outputs_losses(training, inputs, targets, auxiliary_vars, losses_fn):
             self.net.auxiliary_vars = auxiliary_vars
@@ -487,7 +486,7 @@ class Model:
         def outputs_losses_test(inputs, targets, auxiliary_vars):
             return outputs_losses(False, inputs, targets, auxiliary_vars, self.data.losses_test)
         '''
-         
+        
         @paddle.jit.to_static
         def outputs_losses(self_, training, inputs, targets, auxiliary_vars, losses_fn, loss_fn, loss_weights):
             self_.net.auxiliary_vars = auxiliary_vars
@@ -800,7 +799,7 @@ class Model:
             return static_out[-1]
 
 
-        def outputs_losses(training, inputs, targets, losses_fn):
+        def outputs_losses(training, inputs, targets, auxiliary_vars, losses_fn):
             self.feeds = dict()
             self.extra_fetch_var = []
             if training:
@@ -853,14 +852,14 @@ class Model:
                 self.extra_fetch_var.append(static_out[i+2])
             return outputs_, losses
 
-        def outputs_losses_train(inputs, targets):
-            return outputs_losses(True, inputs, targets, self.data.losses_train)
+        def outputs_losses_train(inputs, targets, auxiliary_vars):
+            return outputs_losses(True, inputs, targets,  auxiliary_vars, self.data.losses_train)
 
-        def outputs_losses_test(inputs, targets):
-            return outputs_losses(False, inputs, targets, self.data.losses_test)
+        def outputs_losses_test(inputs, targets, auxiliary_vars):
+            return outputs_losses(False, inputs, targets,  auxiliary_vars, self.data.losses_test)
 
-        def train_step(inputs, targets):
-            _, loss = outputs_losses_train(inputs, targets)
+        def train_step(inputs, targets, auxiliary_vars):
+            _, loss = outputs_losses_train(inputs, targets, auxiliary_vars)
             # if paddle.incubate.autograd.prim_enabled():
             #     filename = 'newAD_static_loss.log'
             # else:
@@ -1012,7 +1011,7 @@ class Model:
                                     self.data.losses_train,
                                     self.data.losses_test)
         print("start_up_program end ...")
-        self._test()
+        #self._test()
         self.callbacks.on_train_begin()
         if optimizers.is_external_optimizer(self.opt_name):
             if backend_name == "tensorflow.compat.v1":

@@ -10,17 +10,32 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.io import loadmat
 import re
+import argparse
 
 from deepxde.config import set_random_seed
 from paddle.fluid import core
 
 set_random_seed(100)
-core.__set_bwd_prim_enabled(False)
+core.__set_bwd_prim_enabled(True)
+paddle.jit.enable_to_static(False)
 
-if (core._is_bwd_prim_enabled()):
-    print("prim is called")
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    '--static', default=False, action="store_true")
+parser.add_argument(
+    '--jit', default=False, action="store_true")
+args = parser.parse_args()
+
+if args.static is True:
+    print("============= 静态图静态图静态图静态图静态图 =============")
+    paddle.enable_static()
+elif args.jit:
+    paddle.jit.enable_to_static(True)
+    print("============= 动转静动转静动转静动转静动转静 =============")
 else:
-    print("fused is called")
+    print("============= 动态图动态图动态图动态图动态图 =============")
+if (core._is_bwd_prim_enabled()):
+    print("============= 组合算子 组合算子 =============")
 
 # true values
 C1true = 1.0
