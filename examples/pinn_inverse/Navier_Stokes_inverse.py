@@ -16,7 +16,7 @@ from deepxde.config import set_random_seed
 from paddle.fluid import core
 
 set_random_seed(100)
-core.__set_bwd_prim_enabled(True)
+core.set_prim_eager_enabled(True)
 paddle.jit.enable_to_static(False)
 
 parser = argparse.ArgumentParser()
