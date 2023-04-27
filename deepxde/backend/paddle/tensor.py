@@ -3,7 +3,9 @@ from distutils.version import LooseVersion
 
 import paddle
 
-if LooseVersion(paddle.__version__) < LooseVersion("2.3.0") and LooseVersion(paddle.__version__) != LooseVersion("0.0.0") :
+if LooseVersion(paddle.__version__) < LooseVersion("2.3.0") and LooseVersion(
+    paddle.__version__
+) != LooseVersion("0.0.0"):
     raise RuntimeError("DeepXDE requires PaddlePaddle>=2.3.0")
 
 if paddle.device.is_compiled_with_cuda():
@@ -56,7 +58,11 @@ def Variable(initial_value, dtype=None):
     if paddle.in_dynamic_mode():
         return paddle.to_tensor(initial_value, dtype=dtype, stop_gradient=False)
     else:
-        return paddle.static.create_parameter(shape=[1], dtype='float32', default_initializer=paddle.nn.initializer.Constant(value=initial_value))
+        return paddle.static.create_parameter(
+            shape=[1],
+            dtype="float32",
+            default_initializer=paddle.nn.initializer.Constant(value=initial_value),
+        )
 
 
 def as_tensor(data, dtype=None):
@@ -64,7 +70,8 @@ def as_tensor(data, dtype=None):
         if dtype is None or data.dtype == dtype:
             return data
         return data.astype(dtype)
-    return paddle.to_tensor(data, dtype=dtype)
+    output = paddle.to_tensor(data, dtype=dtype)
+    return output.reshape([1]) if output.shape == [] else output
 
 
 def from_numpy(np_array):
@@ -106,7 +113,7 @@ def exp(x):
 def pow(x, y):
     return paddle.pow(x, y)
 
-    
+
 def square(x):
     return paddle.square(x)
 
@@ -161,7 +168,9 @@ def SparseTensor(indices, values, shape):
     indices = paddle.stack(
         [paddle.to_tensor(x), paddle.to_tensor(y)]
     )  # [2, num_of_nonzeros]
-    return paddle.sparse.sparse_coo_tensor(indices=indices, values=values, shape=list(shape), stop_gradient=False)
+    return paddle.sparse.sparse_coo_tensor(
+        indices=indices, values=values, shape=list(shape), stop_gradient=False
+    )
 
 
 def sparse_tensor_dense_matmul(x, y):
