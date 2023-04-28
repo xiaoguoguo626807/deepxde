@@ -105,7 +105,7 @@ class FPDE(PDE):
                     int_mat = self.int_mat
                 else:
                     int_mat = self.get_int_matrix(True)
-                    self.int_mat = int_mat # cache int_mat
+                    self.int_mat = int_mat  # cache int_mat
             else:
                 # learnable alpha
                 int_mat = self.get_int_matrix(True)
@@ -116,14 +116,18 @@ class FPDE(PDE):
             f = [f]
         f = [fi[bcs_start[-1] :] for fi in f]
         losses = [
-            loss_fn(bkd.zeros(bkd.tensor_shape(fi), dtype=config.real(bkd.lib)), fi) for fi in f
+            loss_fn(bkd.zeros(bkd.tensor_shape(fi), dtype=config.real(bkd.lib)), fi)
+            for fi in f
         ]
 
         for i, bc in enumerate(self.bcs):
             beg, end = bcs_start[i], bcs_start[i + 1]
             error = bc.error(self.train_x, inputs, outputs, beg, end)
             losses.append(
-                loss_fn(bkd.zeros(bkd.tensor_shape(error), dtype=config.real(bkd.lib)), error)
+                loss_fn(
+                    bkd.zeros(bkd.tensor_shape(error), dtype=config.real(bkd.lib)),
+                    error,
+                )
             )
         return losses
 
@@ -133,8 +137,9 @@ class FPDE(PDE):
         if not isinstance(f, (list, tuple)):
             f = [f]
         return [
-            loss_fn(bkd.zeros(bkd.tensor_shape(fi), dtype=config.real(bkd.lib)), fi) for fi in f
-        ] + [bkd.constant(0, dtype=config.real(bkd.lib)) for _ in self.bcs]
+            loss_fn(bkd.zeros(bkd.tensor_shape(fi), dtype=config.real(bkd.lib)), fi)
+            for fi in f
+        ] + [bkd.as_tensor(0, dtype=config.real(bkd.lib)) for _ in self.bcs]
 
     @run_if_all_none("train_x", "train_y")
     def train_next_batch(self, batch_size=None):
@@ -383,7 +388,11 @@ class Fractional:
             if self.disc.meshtype == "static"
             else self.dynamic_dist2npts(self.geom.diam) + 1
         )
-        w = [bkd.constant(1.0, dtype=config.real(bkd.lib)) if bkd.is_tensor(self.alpha) else 1.0]
+        w = [
+            bkd.constant(1.0, dtype=config.real(bkd.lib))
+            if bkd.is_tensor(self.alpha)
+            else 1.0
+        ]
         for j in range(1, n):
             w.append(w[-1] * (j - 1 - self.alpha) / j)
         return array_ops_compat.convert_to_array(w)
@@ -436,7 +445,7 @@ class Fractional:
                         ]
                     )
                     dirn_w.append(gauss_w[i] * gauss_w[j] * np.sin(thetas[i]))
-            dirn_w = np.pi ** 2 / 2 * np.array(dirn_w)
+            dirn_w = np.pi**2 / 2 * np.array(dirn_w)
         x, self.w = [], []
         for x0i in self.x0:
             xi = list(
@@ -492,7 +501,7 @@ class Fractional:
         w2 = np.hstack(([config.real(np)(0)] * 2, w[:-1]))
         beta = 1 - self.alpha / 2
         w = (
-            (-6 * beta ** 2 + 11 * beta + 1) / 6 * w0
+            (-6 * beta**2 + 11 * beta + 1) / 6 * w0
             + (11 - 6 * beta) * (1 - beta) / 12 * w1
             + (6 * beta + 1) * (beta - 1) / 12 * w2
         )
@@ -515,8 +524,8 @@ class Fractional:
             h = self.geom.diam / (self.disc.resolution[0] - 1)
             for i in range(1, self.disc.resolution[0] - 1):
                 # first order
-                int_mat[i, 1: i + 2] = np.flipud(self.get_weight(i))
-                int_mat[i, i - 1: -1] += self.get_weight(
+                int_mat[i, 1 : i + 2] = np.flipud(self.get_weight(i))
+                int_mat[i, i - 1 : -1] += self.get_weight(
                     self.disc.resolution[0] - 1 - i
                 )
                 # second order
@@ -563,7 +572,11 @@ class Fractional:
             row = bkd.expand_dims(row, 0)
             int_mat = bkd.concat([int_mat, row], 0)
         int_mat = bkd.concat(
-            [int_mat, bkd.zeros([1, self.disc.resolution[0]], dtype=config.real(bkd.lib))], 0
+            [
+                int_mat,
+                bkd.zeros([1, self.disc.resolution[0]], dtype=config.real(bkd.lib)),
+            ],
+            0,
         )
         h = self.geom.diam / (self.disc.resolution[0] - 1)
         return h ** (-self.alpha) * int_mat
@@ -634,7 +647,10 @@ class FractionalTime:
         x = self.geom.uniform_points(self.disc.resolution[0], True)
         x = np.roll(x, 1)[:, 0]
         dt = (self.tmax - self.tmin) / (self.nt - 1)
-        d = np.empty((self.disc.resolution[0] * self.nt, self.geom.dim + 1), dtype=config.real(np))
+        d = np.empty(
+            (self.disc.resolution[0] * self.nt, self.geom.dim + 1),
+            dtype=config.real(np),
+        )
         d[0 : self.disc.resolution[0], 0] = x
         d[0 : self.disc.resolution[0], 1] = self.tmin
         beg = self.disc.resolution[0]
