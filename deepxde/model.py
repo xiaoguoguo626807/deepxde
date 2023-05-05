@@ -470,7 +470,7 @@ class Model:
             if not isinstance(losses, list):
                 losses = [losses]
             # TODO: regularization
-            losses = paddle.concat(losses, axis=0)
+            losses = paddle.stack(losses, axis=0)
 
             # Weighted losses
             if loss_weights is not None:
