@@ -2,8 +2,6 @@
 import deepxde as dde
 import numpy as np
 import paddle
-from paddle.fluid import core
-core.set_prim_eager_enabled(True)
 
 def ddy(x, y):
     return dde.grad.hessian(y, x)
